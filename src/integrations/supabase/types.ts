@@ -14,7 +14,265 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          notebook_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          notebook_id: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          notebook_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_notebook_id_fkey"
+            columns: ["notebook_id"]
+            isOneToOne: false
+            referencedRelation: "notebooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flashcards: {
+        Row: {
+          answer: string
+          created_at: string
+          id: string
+          mastered: boolean
+          notebook_id: string
+          position: number
+          question: string
+          user_id: string
+        }
+        Insert: {
+          answer: string
+          created_at?: string
+          id?: string
+          mastered?: boolean
+          notebook_id: string
+          position?: number
+          question: string
+          user_id: string
+        }
+        Update: {
+          answer?: string
+          created_at?: string
+          id?: string
+          mastered?: boolean
+          notebook_id?: string
+          position?: number
+          question?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flashcards_notebook_id_fkey"
+            columns: ["notebook_id"]
+            isOneToOne: false
+            referencedRelation: "notebooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notebooks: {
+        Row: {
+          created_at: string
+          description: string
+          error_message: string | null
+          id: string
+          status: string
+          subject_code: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          error_message?: string | null
+          id?: string
+          status?: string
+          subject_code?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          error_message?: string | null
+          id?: string
+          status?: string
+          subject_code?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notes: {
+        Row: {
+          body: string
+          created_at: string
+          heading: string
+          id: string
+          notebook_id: string
+          position: number
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          heading: string
+          id?: string
+          notebook_id: string
+          position?: number
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          heading?: string
+          id?: string
+          notebook_id?: string
+          position?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notes_notebook_id_fkey"
+            columns: ["notebook_id"]
+            isOneToOne: false
+            referencedRelation: "notebooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      quiz_questions: {
+        Row: {
+          correct_index: number
+          created_at: string
+          explanation: string
+          id: string
+          notebook_id: string
+          options: Json
+          position: number
+          question: string
+          user_id: string
+        }
+        Insert: {
+          correct_index?: number
+          created_at?: string
+          explanation?: string
+          id?: string
+          notebook_id: string
+          options?: Json
+          position?: number
+          question: string
+          user_id: string
+        }
+        Update: {
+          correct_index?: number
+          created_at?: string
+          explanation?: string
+          id?: string
+          notebook_id?: string
+          options?: Json
+          position?: number
+          question?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_questions_notebook_id_fkey"
+            columns: ["notebook_id"]
+            isOneToOne: false
+            referencedRelation: "notebooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sources: {
+        Row: {
+          content: string
+          created_at: string
+          file_path: string | null
+          id: string
+          kind: string
+          name: string
+          notebook_id: string
+          user_id: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          kind?: string
+          name: string
+          notebook_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          kind?: string
+          name?: string
+          notebook_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sources_notebook_id_fkey"
+            columns: ["notebook_id"]
+            isOneToOne: false
+            referencedRelation: "notebooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
