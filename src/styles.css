@@ -340,3 +340,46 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- quiz motion ---------- */
+
+@keyframes shake-x {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+
+@keyframes pop-in {
+  0% { opacity: 0; transform: scale(0.94) translateY(8px); }
+  60% { opacity: 1; transform: scale(1.02) translateY(0); }
+  100% { transform: scale(1) translateY(0); }
+}
+
+@keyframes sweep {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@utility anim-shake {
+  animation: shake-x 0.45s var(--ease-kinetic) both;
+}
+
+@utility anim-pop {
+  animation: pop-in 0.45s var(--ease-kinetic) both;
+}
+
+@utility shimmer-text {
+  background: linear-gradient(
+    90deg,
+    var(--muted-foreground) 0%,
+    var(--foreground) 50%,
+    var(--muted-foreground) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: sweep 2.2s linear infinite;
+}

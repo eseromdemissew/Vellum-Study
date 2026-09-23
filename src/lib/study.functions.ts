@@ -422,3 +422,216 @@ export const askSources = createServerFn({ method: "POST" })
       throw new Error(message);
     }
   });
+
+/* ---------------------------------------------------------------
+ * Unlimited generation: top up a notebook with brand-new questions
+ * or flashcards on demand, never repeating what is already stored.
+ * ------------------------------------------------------------- */
+
+const MoreQuizSchema = z.object({
+  quiz: z
+    .array(
+      z.object({
+        question: z.string(),
+        options: z.array(z.string()),
+        correct_index: z.number(),
+        explanation: z.string().default(""),
+      }),
+    )
+    .default([]),
+});
+
+const MoreCardsSchema = z.object({
+  flashcards: z
+    .array(z.object({ question: z.string(), answer: z.string() }))
+    .default([]),
+});
+
+async function notebookContext(supabase: any, notebookId: string) {
+  const { data: notebook, error } = await supabase
+    .from("notebooks")
+    .select("id, title, description")
+    .eq("id", notebookId)
+    .single();
+  if (error || !notebook) throw new Error("Notebook not found.");
+
+  const { parts } = await buildSourceParts(supabase, notebook.id);
+  const { data: notes } = await supabase
+    .from("notes")
+    .select("heading, body")
+    .eq("notebook_id", notebook.id)
+    .order("position");
+
+  const notesText = (notes ?? [])
+    .map((n: { heading: string; body: string }) => `${n.heading}: ${n.body}`)
+    .join("\n");
+
+  return { notebook, parts, notesText };
+}
+
+export const generateMoreQuestions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        notebookId: z.string().uuid(),
+        count: z.number().int().min(1).max(15).default(8),
+        difficulty: z.enum(["easy", "medium", "hard", "mixed"]).default("mixed"),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    try {
+      const apiKey = requireLovableApiKey();
+      const gateway = createLovableAiGatewayProvider(apiKey);
+      const { notebook, parts, notesText } = await notebookContext(
+        supabase,
+        data.notebookId,
+      );
+
+      const { data: existing } = await supabase
+        .from("quiz_questions")
+        .select("question, position")
+        .eq("notebook_id", notebook.id)
+        .order("position", { ascending: false })
+        .limit(80);
+
+      const asked = (existing ?? []).map((q: { question: string }) => q.question);
+      const nextPosition =
+        ((existing ?? [])[0]?.position ?? -1) + 1;
+
+      const result = streamText({
+        model: gateway(MODEL),
+        system:
+          "You are Vellum, an expert exam-question writer. You always reply with strict, valid JSON only, no markdown fences.",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `Notebook: ${notebook.title}\n${notebook.description ?? ""}\n\nKey notes:\n${notesText}`,
+              },
+              ...parts,
+              {
+                type: "text",
+                text: `Write ${data.count} BRAND NEW multiple-choice questions at ${data.difficulty} difficulty.
+
+Already asked (never repeat these or paraphrase them):
+${asked.map((q: string) => `- ${q}`).join("\n") || "- (nothing yet)"}
+
+Reply with ONLY this JSON:
+{"quiz":[{"question":"...","options":["a","b","c","d"],"correct_index":0,"explanation":"why the answer is right and the others are wrong, 1-3 sentences"}]}
+
+Rules: exactly 4 options each, plausible distractors, explore angles not yet covered, stay faithful to the material.`,
+              },
+            ] as any,
+          },
+        ],
+      });
+
+      const parsed = MoreQuizSchema.parse(extractJson(await result.text));
+      const rows = parsed.quiz
+        .filter((q) => q.options.length >= 2)
+        .map((q, index) => ({
+          notebook_id: notebook.id,
+          user_id: userId,
+          question: q.question,
+          options: q.options,
+          correct_index: Math.min(
+            Math.max(q.correct_index, 0),
+            q.options.length - 1,
+          ),
+          explanation: q.explanation,
+          position: nextPosition + index,
+        }));
+
+      if (rows.length === 0) throw new Error("empty generation");
+      const { error } = await supabase.from("quiz_questions").insert(rows);
+      if (error) throw new Error(error.message);
+
+      return { added: rows.length };
+    } catch (error) {
+      console.error("[generateMoreQuestions]", error);
+      throw new Error(describeAiError(error));
+    }
+  });
+
+export const generateMoreFlashcards = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        notebookId: z.string().uuid(),
+        count: z.number().int().min(1).max(20).default(10),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    try {
+      const apiKey = requireLovableApiKey();
+      const gateway = createLovableAiGatewayProvider(apiKey);
+      const { notebook, parts, notesText } = await notebookContext(
+        supabase,
+        data.notebookId,
+      );
+
+      const { data: existing } = await supabase
+        .from("flashcards")
+        .select("question, position")
+        .eq("notebook_id", notebook.id)
+        .order("position", { ascending: false })
+        .limit(80);
+
+      const asked = (existing ?? []).map((c: { question: string }) => c.question);
+      const nextPosition = ((existing ?? [])[0]?.position ?? -1) + 1;
+
+      const result = streamText({
+        model: gateway(MODEL),
+        system:
+          "You are Vellum, an expert flashcard writer. You always reply with strict, valid JSON only, no markdown fences.",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `Notebook: ${notebook.title}\n${notebook.description ?? ""}\n\nKey notes:\n${notesText}`,
+              },
+              ...parts,
+              {
+                type: "text",
+                text: `Write ${data.count} BRAND NEW flashcards.
+
+Already covered (never repeat or paraphrase):
+${asked.map((q: string) => `- ${q}`).join("\n") || "- (nothing yet)"}
+
+Reply with ONLY this JSON: {"flashcards":[{"question":"...","answer":"..."}]}
+Answers must be self-contained and exam-focused.`,
+              },
+            ] as any,
+          },
+        ],
+      });
+
+      const parsed = MoreCardsSchema.parse(extractJson(await result.text));
+      const rows = parsed.flashcards.map((c, index) => ({
+        notebook_id: notebook.id,
+        user_id: userId,
+        question: c.question,
+        answer: c.answer,
+        position: nextPosition + index,
+      }));
+
+      if (rows.length === 0) throw new Error("empty generation");
+      const { error } = await supabase.from("flashcards").insert(rows);
+      if (error) throw new Error(error.message);
+
+      return { added: rows.length };
+    } catch (error) {
+      console.error("[generateMoreFlashcards]", error);
+      throw new Error(describeAiError(error));
+    }
+  });
