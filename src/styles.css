@@ -383,3 +383,27 @@
   color: transparent;
   animation: sweep 2.2s linear infinite;
 }
+
+/* ---------- quiz feedback motion ---------- */
+@keyframes shake-x {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+@keyframes pop-in {
+  0% { transform: scale(0.96); }
+  45% { transform: scale(1.025); }
+  100% { transform: scale(1); }
+}
+@keyframes unfold {
+  from { opacity: 0; transform: translateY(-6px); max-height: 0; }
+  to { opacity: 1; transform: translateY(0); max-height: 480px; }
+}
+@utility anim-shake { animation: shake-x 0.45s var(--ease-kinetic); }
+@utility anim-pop { animation: pop-in 0.45s var(--ease-kinetic); }
+@utility anim-unfold { animation: unfold 0.5s var(--ease-kinetic) both; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) {
+  .anim-shake, .anim-pop, .anim-unfold { animation: none; }
+}
