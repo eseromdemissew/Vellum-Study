@@ -107,7 +107,7 @@ function Landing() {
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link
                   to={user ? "/dashboard" : "/auth"}
-                  search={user ? undefined : { mode: "signup" }}
+                  search={(user ? {} : { mode: "signup" }) as any}
                   className="group inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-lg transition hover:brightness-110"
                 >
                   {user ? "Go to your notebooks" : "Start studying free"}
@@ -238,7 +238,7 @@ function Landing() {
             </p>
             <Link
               to={user ? "/dashboard" : "/auth"}
-              search={user ? undefined : { mode: "signup" }}
+              search={(user ? {} : { mode: "signup" }) as any}
               className="mt-7 inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition hover:brightness-110"
             >
               {user ? "Open your notebooks" : "Create your first notebook"}
