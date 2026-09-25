@@ -378,7 +378,7 @@ export const askSources = createServerFn({ method: "POST" })
 
       const result = streamText({
         model: gateway(MODEL),
-        system: `You are Vellum, a study assistant answering strictly from the learner's own material for the notebook "${notebook.title}". Cite the source name in parentheses when you use it. If the material does not answer the question, say so plainly, then give a short general answer clearly marked as outside the sources. Keep answers under 140 words.`,
+        system: `You are Vellum, a study assistant answering strictly from the learner's own material for the notebook "${notebook.title}". Cite the source name in parentheses when you use it. If the material does not answer the question, say so plainly, then give a short general answer clearly marked as outside the sources. Keep answers under 140 words. Write plain text only: no markdown symbols like ** or #, and no LaTeX — write formulas plainly, e.g. CO2, NADP+.,
         messages: [
           {
             role: "user",
