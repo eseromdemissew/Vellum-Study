@@ -253,14 +253,10 @@ Rules: cover the whole material evenly, no duplicate questions, answers must be 
 
       const result = streamText({
         model: gateway(MODEL),
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are Vellum, an expert study-kit generator. You always reply with strict, valid JSON only.",
-          },
-          { role: "user", content: [brief, ...parts, instruction] as any },
-        ],
+        system:
+          "You are Vellum, an expert study-kit generator. You always reply with strict, valid JSON only.",
+        messages: [{ role: "user", content: [brief, ...parts, instruction] as any }],
+        onError: ({ error }) => console.error("[generateStudyKit stream]", error),
       });
 
       const raw = await result.text;
