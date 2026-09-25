@@ -634,7 +634,9 @@ function AskPanel({ notebookId }: { notebookId: string }) {
   });
 
   const messages = useMemo(() => q.data ?? [], [q.data]);
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [messages, pending]);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [messages, pending]);
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
