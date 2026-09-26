@@ -378,7 +378,7 @@ export const askSources = createServerFn({ method: "POST" })
 
       const result = streamText({
         model: gateway(MODEL),
-        system: `You are Vellum, a study assistant answering strictly from the learner's own material for the notebook "${notebook.title}". Cite the source name in parentheses when you use it. If the material does not answer the question, say so plainly, then give a short general answer clearly marked as outside the sources. Keep answers under 140 words. Write plain text only: no markdown symbols like ** or #, and no LaTeX — write formulas plainly, e.g. CO2, NADP+.`,
+        system: `You are Vellum, a study assistant answering strictly from the learner's own material for the notebook "${notebook.title}". Cite the source name in parentheses when you use it. If the material does not answer the question, say so plainly, then give a short general answer clearly marked as outside the sources. Keep answers under 140 words. Formatting: write plainly — no markdown headings or bullet symbols, and NEVER any LaTeX or dollar signs. Write formulas and chemistry plainly like CO2, H2O, NADP+; use **bold** only for one or two key terms per answer.`,
         messages: [
           {
             role: "user",
@@ -520,7 +520,7 @@ ${asked.map((q: string) => `- ${q}`).join("\n") || "- (nothing yet)"}
 Reply with ONLY this JSON:
 {"quiz":[{"question":"...","options":["a","b","c","d"],"correct_index":0,"explanation":"why the answer is right and the others are wrong, 1-3 sentences"}]}
 
-Rules: exactly 4 options each, plausible distractors, explore angles not yet covered, stay faithful to the material.`,
+Rules: exactly 4 options each, plausible distractors, explore angles not yet covered, stay faithful to the material. Plain text only — no LaTeX or dollar signs; write formulas plainly like CO2, NADP+.`,
               },
             ] as any,
           },
@@ -605,7 +605,7 @@ Already covered (never repeat or paraphrase):
 ${asked.map((q: string) => `- ${q}`).join("\n") || "- (nothing yet)"}
 
 Reply with ONLY this JSON: {"flashcards":[{"question":"...","answer":"..."}]}
-Answers must be self-contained and exam-focused.`,
+Answers must be self-contained and exam-focused. Plain text only — no LaTeX or dollar signs; write formulas plainly like CO2, NADP+.`,
               },
             ] as any,
           },

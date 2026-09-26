@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/AppHeader";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { RichText } from "@/lib/rich-text";
 import {
   askSources,
   generateMoreFlashcards,
@@ -306,7 +307,9 @@ function QuizPanel({ notebookId }: { notebookId: string }) {
                 style={{ width: `${((index + (answered ? 1 : 0)) / list.length) * 100}%` }}
               />
             </div>
-            <h2 className="mt-6 font-display text-xl leading-snug md:text-2xl">{current.question}</h2>
+            <h2 className="mt-6 font-display text-xl leading-snug md:text-2xl">
+              <RichText text={current.question} />
+            </h2>
 
             <div className="mt-6 grid gap-3">
               {current.options.map((opt, i) => {
@@ -340,7 +343,7 @@ function QuizPanel({ notebookId }: { notebookId: string }) {
                         String.fromCharCode(65 + i)
                       )}
                     </span>
-                    <span className="flex-1">{opt}</span>
+                    <span className="flex-1"><RichText text={opt} /></span>
                   </button>
                 );
               })}
@@ -374,7 +377,7 @@ function QuizPanel({ notebookId }: { notebookId: string }) {
                     <span className="font-mono text-[10px] tracking-wide text-foreground">
                       EXPLANATION ·{" "}
                     </span>
-                    {current.explanation}
+                    <RichText text={current.explanation} />
                   </p>
                 )}
                 <button
@@ -537,12 +540,16 @@ function CardsPanel({ notebookId }: { notebookId: string }) {
           >
             <div className="glass backface-hidden absolute inset-0 flex flex-col rounded-3xl p-8">
               <span className="font-mono text-[11px] text-primary">QUESTION</span>
-              <p className="m-auto text-center font-display text-2xl leading-snug">{card.question}</p>
+              <p className="m-auto text-center font-display text-2xl leading-snug">
+                <RichText text={card.question} />
+              </p>
               <span className="text-center text-xs text-muted-foreground">Tap to reveal</span>
             </div>
             <div className="glass backface-hidden rotate-y-180 absolute inset-0 flex flex-col rounded-3xl p-8">
               <span className="font-mono text-[11px] text-cool">ANSWER</span>
-              <p className="m-auto overflow-auto text-center text-lg leading-relaxed">{card.answer}</p>
+              <p className="m-auto overflow-auto text-center text-lg leading-relaxed">
+                <RichText text={card.answer} />
+              </p>
             </div>
           </div>
         </div>
@@ -605,7 +612,9 @@ function NotesPanel({ notebookId }: { notebookId: string }) {
         >
           <span className="font-mono text-[11px] text-primary">{String(i + 1).padStart(2, "0")}</span>
           <h3 className="mt-1 font-display text-lg">{n.heading}</h3>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{n.body}</p>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            <RichText text={n.body} />
+          </p>
         </article>
       ))}
     </div>
@@ -704,7 +713,7 @@ function Bubble({ role, content }: { role: string; content: string }) {
           mine ? "bg-primary text-primary-foreground" : "glass-fill"
         }`}
       >
-        {content}
+        {mine ? content : <RichText text={content} />}
       </div>
     </div>
   );
