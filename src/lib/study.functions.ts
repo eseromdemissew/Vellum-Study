@@ -605,7 +605,7 @@ Already covered (never repeat or paraphrase):
 ${asked.map((q: string) => `- ${q}`).join("\n") || "- (nothing yet)"}
 
 Reply with ONLY this JSON: {"flashcards":[{"question":"...","answer":"..."}]}
-Answers must be self-contained and exam-focused.`,
+Answers must be self-contained and exam-focused. Plain text only — no LaTeX or dollar signs; write formulas plainly like CO2, NADP+.`,
               },
             ] as any,
           },
