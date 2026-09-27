@@ -48,7 +48,7 @@ export const completeRegistration = createServerFn({ method: "POST" })
     };
     if (data.role === "student") {
       const { data: sid } = await ctx.supabase.rpc("generate_student_id");
-      update.student_id = sid;
+      update["student_id"] = sid;
     }
     const { error } = await ctx.supabase.from("profiles").update(update).eq("id", ctx.userId);
     if (error) throw new Error(error.message);
@@ -346,7 +346,7 @@ export const adminAddApiKey = createServerFn({ method: "POST" })
     const encoder = new TextEncoder();
     const keyData = encoder.encode(data.key);
     const pepperData = encoder.encode(pepper);
-    const obfuscated = Buffer.from(keyData.map((b, i) => b ^ pepperData[i % pepperData.length])).toString("base64");
+    const obfuscated = Buffer.from(keyData.map((b, i) => b ^ (pepperData[i % pepperData.length] ?? 0))).toString("base64");
     const { error } = await supabaseAdmin.from("ai_api_keys").insert({
       label: data.label,
       key_encrypted: obfuscated,
