@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as ParentRouteImport } from './routes/parent'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as NotebookNotebookIdRouteImport } from './routes/notebook.$notebookId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +31,16 @@ const DashboardRoute = DashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ParentRoute = ParentRouteImport.update({
+  id: '/parent',
+  path: '/parent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NotebookNotebookIdRoute = NotebookNotebookIdRouteImport.update({
   id: '/notebook/$notebookId',
   path: '/notebook/$notebookId',
@@ -39,12 +51,16 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
+  '/parent': typeof ParentRoute
+  '/settings': typeof SettingsRoute
   '/notebook/$notebookId': typeof NotebookNotebookIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
+  '/parent': typeof ParentRoute
+  '/settings': typeof SettingsRoute
   '/notebook/$notebookId': typeof NotebookNotebookIdRoute
 }
 export interface FileRoutesById {
@@ -52,20 +68,43 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof DashboardRoute
+  '/parent': typeof ParentRoute
+  '/settings': typeof SettingsRoute
   '/notebook/$notebookId': typeof NotebookNotebookIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/dashboard' | '/notebook/$notebookId'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/parent'
+    | '/settings'
+    | '/notebook/$notebookId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/dashboard' | '/notebook/$notebookId'
-  id: '__root__' | '/' | '/auth' | '/dashboard' | '/notebook/$notebookId'
+  to:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/parent'
+    | '/settings'
+    | '/notebook/$notebookId'
+  id:
+    | '__root__'
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/parent'
+    | '/settings'
+    | '/notebook/$notebookId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRoute
   DashboardRoute: typeof DashboardRoute
+  ParentRoute: typeof ParentRoute
+  SettingsRoute: typeof SettingsRoute
   NotebookNotebookIdRoute: typeof NotebookNotebookIdRoute
 }
 
@@ -92,6 +131,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/parent': {
+      id: '/parent'
+      path: '/parent'
+      fullPath: '/parent'
+      preLoaderRoute: typeof ParentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/notebook/$notebookId': {
       id: '/notebook/$notebookId'
       path: '/notebook/$notebookId'
@@ -106,6 +159,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRoute,
   DashboardRoute: DashboardRoute,
+  ParentRoute: ParentRoute,
+  SettingsRoute: SettingsRoute,
   NotebookNotebookIdRoute: NotebookNotebookIdRoute,
 }
 export const routeTree = rootRouteImport
