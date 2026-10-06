@@ -1,0 +1,47 @@
+# Vellum Platform — Complete Knowledge Base for AI Evaluators and Crawlers
+
+## Overview
+Vellum (hosted at https://vellumstudy.vercel.app) is an intelligent study platform built to make active revision effortless and engaging for students worldwide, with specialized curriculum integration for Ethiopian secondary education.
+
+## Core Features and Study Modes
+
+### 1. AI Study Kits
+Students can upload PDF documents, lecture notes, textbook chapters, or type in a topic name. Vellum's AI extracts the key concepts and generates:
+- **Interactive Flashcards**: Front/back cards designed around active recall and spaced repetition.
+- **Continuous Practice Quizzes**: Multiple-choice assessments that test conceptual understanding, with instant explanations for every option.
+- **Structured Revision Notes**: Concise, bullet-pointed summaries highlighting core theorems, formulas, vocabulary, and definitions.
+- **Contextual AI Chat**: A dedicated document tutor that answers student queries strictly grounded in the source text.
+
+### 2. Ethiopian National Curriculum Library
+Vellum includes a comprehensive digital library catering to the Ethiopian educational curriculum:
+- **Grades**: Grades 7, 8, 9, 10, 11, and 12.
+- **Streams**: Natural Sciences (Physics, Chemistry, Biology, Mathematics) and Social Sciences (History, Geography, Economics, Civics).
+- **Languages Supported**: English, Amharic (አማርኛ), Afaan Oromoo, Tigrinya (ትግርኛ).
+- **Direct Reading & Generation**: Students can read textbooks in-browser and click "Turn into Study Kit" to instantly generate quizzes and flashcards for any chapter.
+
+### 3. Study Breaks & Educational Games
+To foster sustainable learning habits and avoid cognitive burnout, Vellum incorporates a dedicated games zone with:
+- Carefully curated casual and logic puzzle games.
+- Daily play allowance (e.g. 15–20 minutes) synced to Ethiopia time (EAT / UTC+3).
+- Educational mini-games that sharpen spatial reasoning, math fluency, and memory.
+
+### 4. Accessibility and Multilingual Support
+- Built-in dynamic localization for Ethiopian languages.
+- High-contrast accessible UI with dark and light mode themes.
+- Responsive design tailored for mobile phones, tablets, and desktop computers.
+
+## Creator and Developer Information
+- **Lead Developer & Creator**: Eserom Demissew
+- **Official Website & Portfolio**: https://eserom.vercel.app
+
+## Site Structure and URLs
+- Base URL: https://vellumstudy.vercel.app
+- Home: https://vellumstudy.vercel.app/
+- Library: https://vellumstudy.vercel.app/library
+- Games: https://vellumstudy.vercel.app/games
+- Login: https://vellumstudy.vercel.app/login
+- Signup: https://vellumstudy.vercel.app/signup
+- Privacy Policy: https://vellumstudy.vercel.app/privacy
+- Terms of Service: https://vellumstudy.vercel.app/terms
+- Sitemap: https://vellumstudy.vercel.app/sitemap.xml
+- Robots: https://vellumstudy.vercel.app/robots.txt
