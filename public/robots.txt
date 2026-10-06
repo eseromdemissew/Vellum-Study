@@ -1,14 +1,163 @@
+# ==========================================
+# Robots.txt for Vellum (https://vellumstudy.vercel.app)
+# Optimized for Web Indexing, Rich Snippets, and AI Discovery
+# ==========================================
+
+# Googlebot (Search & Knowledge Graph)
 User-agent: Googlebot
+User-agent: Googlebot-Image
+User-agent: Googlebot-News
 Allow: /
+Allow: /library
+Allow: /games
+Allow: /privacy
+Allow: /terms
+Allow: /read/
+Allow: /sitemap.xml
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /site.webmanifest
+Allow: /og-image.png
+Allow: /favicon.png
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /chat
+Disallow: /notebook/
+Disallow: /parent
+Disallow: /auth/
+Disallow: /auth.callback
+Disallow: /reset-password
 
+# Bing / Microsoft Copilot Crawler
 User-agent: Bingbot
+User-agent: msnbot
 Allow: /
+Allow: /library
+Allow: /games
+Allow: /privacy
+Allow: /terms
+Allow: /read/
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /chat
+Disallow: /notebook/
+Disallow: /parent
+Disallow: /auth/
+Disallow: /reset-password
 
+# Apple Search & Siri Suggestions
+User-agent: Applebot
+User-agent: Applebot-Extended
+Allow: /
+Allow: /library
+Allow: /games
+Allow: /read/
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /chat
+Disallow: /notebook/
+Disallow: /parent
+
+# OpenAI Search & ChatGPT Web Browsing
+User-agent: GPTBot
+User-agent: ChatGPT-User
+Allow: /
+Allow: /library
+Allow: /games
+Allow: /read/
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /chat
+Disallow: /notebook/
+Disallow: /parent
+
+# Anthropic Claude Search & Citation
+User-agent: ClaudeBot
+User-agent: anthropic-ai
+Allow: /
+Allow: /library
+Allow: /games
+Allow: /read/
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /chat
+Disallow: /notebook/
+Disallow: /parent
+
+# Perplexity AI Search Engine
+User-agent: PerplexityBot
+Allow: /
+Allow: /library
+Allow: /games
+Allow: /read/
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /chat
+Disallow: /notebook/
+Disallow: /parent
+
+# Google Extended (Gemini, Vertex AI)
+User-agent: Google-Extended
+Allow: /
+Allow: /library
+Allow: /games
+Allow: /read/
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /chat
+Disallow: /notebook/
+Disallow: /parent
+
+# Social Media Link Preview Bots
 User-agent: Twitterbot
-Allow: /
-
 User-agent: facebookexternalhit
+User-agent: LinkedInBot
+User-agent: Slackbot-LinkExpanding
+User-agent: Discordbot
+User-agent: TelegramBot
+User-agent: WhatsApp
 Allow: /
+Allow: /library
+Allow: /games
+Allow: /og-image.png
+Allow: /favicon.png
 
+# General Crawlers Default Policy
 User-agent: *
 Allow: /
+Allow: /library
+Allow: /games
+Allow: /privacy
+Allow: /terms
+Allow: /read/
+Allow: /sitemap.xml
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /chat
+Disallow: /notebook/
+Disallow: /parent
+Disallow: /auth/
+Disallow: /auth.callback
+Disallow: /reset-password
+
+# Canonical Host & Sitemap Location
+Host: https://vellumstudy.vercel.app
+Sitemap: https://vellumstudy.vercel.app/sitemap.xml

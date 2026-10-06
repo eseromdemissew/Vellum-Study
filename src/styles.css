@@ -57,10 +57,10 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --font-display: "Space Grotesk", ui-sans-serif, sans-serif;
-  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", "Noto Sans Ethiopic", ui-sans-serif, sans-serif;
+  --font-body: "Inter", "Noto Sans Ethiopic", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", "Noto Sans Ethiopic", ui-sans-serif, system-ui, sans-serif;
 
   --ease-kinetic: cubic-bezier(0.32, 0.72, 0, 1);
 }
@@ -229,6 +229,24 @@
 
 @utility ambient-veil {
   background: var(--ambient-veil);
+}
+
+@utility glass-card {
+  background: linear-gradient(150deg, var(--glass-tint-a), var(--glass-tint-b));
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    0 8px 32px -8px oklch(0 0 0 / 30%),
+    inset 0 1px 0 var(--glass-highlight);
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @utility blob {
@@ -407,3 +425,40 @@
 @media (prefers-reduced-motion: reduce) {
   .anim-shake, .anim-pop, .anim-unfold { animation: none; }
 }
+
+/* ---------- Translation & Localization Protection ---------- */
+.no-translate,
+.notranslate,
+code,
+pre,
+kbd,
+samp {
+  translate: no !important;
+}
+
+/* Suppress 3rd party translate banners & keep fixed viewport layout */
+#google_translate_element,
+.goog-te-banner-frame,
+.skiptranslate > iframe,
+#goog-gt-tt,
+.goog-te-balloon-frame,
+.goog-te-spinner-pos {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+body {
+  top: 0 !important;
+  position: static !important;
+}
+
+.goog-text-highlight {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+font {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+

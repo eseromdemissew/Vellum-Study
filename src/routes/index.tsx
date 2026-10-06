@@ -17,21 +17,36 @@ import { useAuth } from "@/hooks/useAuth";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Vellum — turn anything into a study kit" },
+      { title: "Vellum — AI Study Notebooks, Flashcards & Practice Quizzes" },
       {
         name: "description",
         content:
           "Upload a document or describe a topic. Vellum writes flashcards, unlimited quiz questions, short notes and answers questions from your own sources.",
       },
-      { property: "og:title", content: "Vellum — turn anything into a study kit" },
+      {
+        name: "keywords",
+        content:
+          "AI study notebooks, flashcards generator, AI quiz generator, document to flashcards, active recall, spaced repetition, Ethiopian national textbooks, study revision kit",
+      },
+      { property: "og:title", content: "Vellum — AI Study Notebooks, Flashcards & Practice Quizzes" },
       {
         property: "og:description",
         content:
           "Upload a document or describe a topic. Vellum writes flashcards, unlimited quiz questions, short notes and answers questions from your own sources.",
       },
+      { property: "og:url", content: "https://vellumstudy.vercel.app/" },
       { property: "og:type", content: "website" },
+      { property: "og:image", content: "https://vellumstudy.vercel.app/og-image.png" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Vellum — AI Study Notebooks & Flashcards" },
+      {
+        name: "twitter:description",
+        content:
+          "Turn any document or topic into flashcards, unlimited quiz questions, and concise revision notes.",
+      },
+      { name: "twitter:image", content: "https://vellumstudy.vercel.app/og-image.png" },
     ],
+    links: [{ rel: "canonical", href: "https://vellumstudy.vercel.app/" }],
   }),
   component: Landing,
 });
@@ -106,8 +121,7 @@ function Landing() {
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link
-                  to={user ? "/dashboard" : "/auth"}
-                  search={(user ? {} : { mode: "signup" }) as any}
+                  to={user ? "/dashboard" : "/signup"}
                   className="group inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-lg transition hover:brightness-110"
                 >
                   {user ? "Go to your notebooks" : "Start studying free"}
@@ -250,6 +264,17 @@ function Landing() {
         <footer className="mx-auto max-w-6xl px-5 pb-10 md:px-8">
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-6 font-mono text-[11px] text-muted-foreground">
             <span>VELLUM / AI STUDY NOTEBOOKS</span>
+            <span className="flex items-center gap-1.5">
+              DEVELOPED BY{" "}
+              <a
+                href="https://eserom.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-foreground transition-colors hover:text-primary underline decoration-primary/50 underline-offset-4"
+              >
+                ESEROM DEMISSEW
+              </a>
+            </span>
             <span>BUILT FOR PEOPLE WITH AN EXAM ON MONDAY</span>
           </div>
         </footer>

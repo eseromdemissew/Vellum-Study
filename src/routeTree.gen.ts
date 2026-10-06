@@ -10,15 +10,32 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ChatRouteImport } from './routes/chat'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as GamesRouteImport } from './routes/games'
+import { Route as LibraryRouteImport } from './routes/library'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as ParentRouteImport } from './routes/parent'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as NotebookNotebookIdRouteImport } from './routes/notebook.$notebookId'
+import { Route as ReadBookIdRouteImport } from './routes/read.$bookId'
+import { Route as ReadOlIdRouteImport } from './routes/read.ol.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -26,9 +43,29 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GamesRoute = GamesRouteImport.update({
+  id: '/games',
+  path: '/games',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryRoute = LibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ParentRoute = ParentRouteImport.update({
@@ -36,76 +73,194 @@ const ParentRoute = ParentRouteImport.update({
   path: '/parent',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
+  getParentRoute: () => AuthRoute,
 } as any)
 const NotebookNotebookIdRoute = NotebookNotebookIdRouteImport.update({
   id: '/notebook/$notebookId',
   path: '/notebook/$notebookId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReadBookIdRoute = ReadBookIdRouteImport.update({
+  id: '/read/$bookId',
+  path: '/read/$bookId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReadOlIdRoute = ReadOlIdRouteImport.update({
+  id: '/read/ol/$id',
+  path: '/read/ol/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/admin': typeof AdminRoute
+  '/auth': typeof AuthRouteWithChildren
+  '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
+  '/games': typeof GamesRoute
+  '/library': typeof LibraryRoute
+  '/login': typeof LoginRoute
   '/parent': typeof ParentRoute
+  '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/notebook/$notebookId': typeof NotebookNotebookIdRoute
+  '/read/$bookId': typeof ReadBookIdRoute
+  '/read/ol/$id': typeof ReadOlIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/admin': typeof AdminRoute
+  '/auth': typeof AuthRouteWithChildren
+  '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
+  '/games': typeof GamesRoute
+  '/library': typeof LibraryRoute
+  '/login': typeof LoginRoute
   '/parent': typeof ParentRoute
+  '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/notebook/$notebookId': typeof NotebookNotebookIdRoute
+  '/read/$bookId': typeof ReadBookIdRoute
+  '/read/ol/$id': typeof ReadOlIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/admin': typeof AdminRoute
+  '/auth': typeof AuthRouteWithChildren
+  '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
+  '/games': typeof GamesRoute
+  '/library': typeof LibraryRoute
+  '/login': typeof LoginRoute
   '/parent': typeof ParentRoute
+  '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/notebook/$notebookId': typeof NotebookNotebookIdRoute
+  '/read/$bookId': typeof ReadBookIdRoute
+  '/read/ol/$id': typeof ReadOlIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/auth'
+    | '/chat'
     | '/dashboard'
+    | '/games'
+    | '/library'
+    | '/login'
     | '/parent'
+    | '/privacy'
+    | '/reset-password'
     | '/settings'
+    | '/signup'
+    | '/terms'
+    | '/auth/callback'
     | '/notebook/$notebookId'
+    | '/read/$bookId'
+    | '/read/ol/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/auth'
+    | '/chat'
     | '/dashboard'
+    | '/games'
+    | '/library'
+    | '/login'
     | '/parent'
+    | '/privacy'
+    | '/reset-password'
     | '/settings'
+    | '/signup'
+    | '/terms'
+    | '/auth/callback'
     | '/notebook/$notebookId'
+    | '/read/$bookId'
+    | '/read/ol/$id'
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/auth'
+    | '/chat'
     | '/dashboard'
+    | '/games'
+    | '/library'
+    | '/login'
     | '/parent'
+    | '/privacy'
+    | '/reset-password'
     | '/settings'
+    | '/signup'
+    | '/terms'
+    | '/auth/callback'
     | '/notebook/$notebookId'
+    | '/read/$bookId'
+    | '/read/ol/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AuthRoute: typeof AuthRoute
+  AdminRoute: typeof AdminRoute
+  AuthRoute: typeof AuthRouteWithChildren
+  ChatRoute: typeof ChatRoute
   DashboardRoute: typeof DashboardRoute
+  GamesRoute: typeof GamesRoute
+  LibraryRoute: typeof LibraryRoute
+  LoginRoute: typeof LoginRoute
   ParentRoute: typeof ParentRoute
+  PrivacyRoute: typeof PrivacyRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SettingsRoute: typeof SettingsRoute
+  SignupRoute: typeof SignupRoute
+  TermsRoute: typeof TermsRoute
   NotebookNotebookIdRoute: typeof NotebookNotebookIdRoute
+  ReadBookIdRoute: typeof ReadBookIdRoute
+  ReadOlIdRoute: typeof ReadOlIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -117,11 +272,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -131,11 +300,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/games': {
+      id: '/games'
+      path: '/games'
+      fullPath: '/games'
+      preLoaderRoute: typeof GamesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library': {
+      id: '/library'
+      path: '/library'
+      fullPath: '/library'
+      preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/parent': {
       id: '/parent'
       path: '/parent'
       fullPath: '/parent'
       preLoaderRoute: typeof ParentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -145,6 +349,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/notebook/$notebookId': {
       id: '/notebook/$notebookId'
       path: '/notebook/$notebookId'
@@ -152,16 +377,51 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NotebookNotebookIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/read/$bookId': {
+      id: '/read/$bookId'
+      path: '/read/$bookId'
+      fullPath: '/read/$bookId'
+      preLoaderRoute: typeof ReadBookIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/read/ol/$id': {
+      id: '/read/ol/$id'
+      path: '/read/ol/$id'
+      fullPath: '/read/ol/$id'
+      preLoaderRoute: typeof ReadOlIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface AuthRouteChildren {
+  AuthCallbackRoute: typeof AuthCallbackRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthCallbackRoute: AuthCallbackRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AuthRoute: AuthRoute,
+  AdminRoute: AdminRoute,
+  AuthRoute: AuthRouteWithChildren,
+  ChatRoute: ChatRoute,
   DashboardRoute: DashboardRoute,
+  GamesRoute: GamesRoute,
+  LibraryRoute: LibraryRoute,
+  LoginRoute: LoginRoute,
   ParentRoute: ParentRoute,
+  PrivacyRoute: PrivacyRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SettingsRoute: SettingsRoute,
+  SignupRoute: SignupRoute,
+  TermsRoute: TermsRoute,
   NotebookNotebookIdRoute: NotebookNotebookIdRoute,
+  ReadBookIdRoute: ReadBookIdRoute,
+  ReadOlIdRoute: ReadOlIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

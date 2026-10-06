@@ -93,16 +93,19 @@ function ParentPage() {
             <input
               value={studentIdInput}
               onChange={(e) => setStudentIdInput(e.target.value)}
-              placeholder="Student ID (e.g. STU-1A2B3C4D)"
+              placeholder="Student ID (e.g. VEL-1A2B3C4D or 1A2B3C4D)"
               className="glass-fill flex-1 rounded-xl px-4 py-3 font-mono text-sm uppercase outline-none transition placeholder:normal-case placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/60"
             />
-            <button type="submit" disabled={busy || !studentIdInput.trim()} className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition hover:brightness-110 disabled:opacity-60">
+            <button type="submit" disabled={busy || !studentIdInput.trim()} className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition hover:brightness-110 disabled:opacity-60 cursor-pointer">
               <Link2 className="size-4" /> Send request
             </button>
           </form>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Tip: Your student can find and 1-click copy their Student ID from their profile dropdown at the top right or in Settings.
+          </p>
           {pending.length > 0 && (
             <p className="mt-3 text-xs text-muted-foreground">
-              Waiting on: {pending.map((l: any) => l.student?.display_name ?? l.student?.student_id).join(", ")}
+              Waiting on: {pending.map((l: any) => l.student?.display_name ?? l.student?.student_id ?? "Student").join(", ")}
             </p>
           )}
         </section>

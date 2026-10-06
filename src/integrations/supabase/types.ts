@@ -56,6 +56,78 @@ export type Database = {
         }
         Relationships: []
       }
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
+      books: {
+        Row: {
+          author: string
+          category: string
+          cover_url: string | null
+          created_at: string
+          description: string
+          file_path: string | null
+          grade_level: number | null
+          id: string
+          is_featured: boolean
+          is_national: boolean
+          language: string
+          subject: string | null
+          title: string
+          updated_at: string
+          youtube_suggestions: Json
+        }
+        Insert: {
+          author?: string
+          category?: string
+          cover_url?: string | null
+          created_at?: string
+          description?: string
+          file_path?: string | null
+          grade_level?: number | null
+          id?: string
+          is_featured?: boolean
+          is_national?: boolean
+          language?: string
+          subject?: string | null
+          title: string
+          updated_at?: string
+          youtube_suggestions?: Json
+        }
+        Update: {
+          author?: string
+          category?: string
+          cover_url?: string | null
+          created_at?: string
+          description?: string
+          file_path?: string | null
+          grade_level?: number | null
+          id?: string
+          is_featured?: boolean
+          is_national?: boolean
+          language?: string
+          subject?: string | null
+          title?: string
+          updated_at?: string
+          youtube_suggestions?: Json
+        }
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           content: string
@@ -164,6 +236,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      game_usage: {
+        Row: {
+          day: string
+          seconds: number
+          user_id: string
+        }
+        Insert: {
+          day?: string
+          seconds?: number
+          user_id: string
+        }
+        Update: {
+          day?: string
+          seconds?: number
+          user_id?: string
+        }
+        Relationships: []
       }
       moderation_actions: {
         Row: {
@@ -408,6 +498,8 @@ export type Database = {
           email: string | null
           father_name: string | null
           first_name: string | null
+          grade_level: string | null
+          language: string
           id: string
           student_id: string | null
           suspended: boolean
@@ -419,6 +511,8 @@ export type Database = {
           email?: string | null
           father_name?: string | null
           first_name?: string | null
+          grade_level?: string | null
+          language?: string
           id: string
           student_id?: string | null
           suspended?: boolean
@@ -430,6 +524,8 @@ export type Database = {
           email?: string | null
           father_name?: string | null
           first_name?: string | null
+          grade_level?: string | null
+          language?: string
           id?: string
           student_id?: string | null
           suspended?: boolean
@@ -522,6 +618,27 @@ export type Database = {
           quiz_attempts?: number
           quiz_correct?: number
           started_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      reading_progress: {
+        Row: {
+          book_ref: string
+          page: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          book_ref: string
+          page?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          book_ref?: string
+          page?: number
+          updated_at?: string
           user_id?: string
         }
         Relationships: []

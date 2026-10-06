@@ -75,7 +75,7 @@ function renderSuperSub(text: string, keyBase: string): ReactNode[] {
 
 function inline(text: string, keyBase: string): ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*|__[^_]+__|\*[^*\n]+\*|`[^`\n]+`)/g);
-  return parts.flatMap((part, i) => {
+  return parts.flatMap<ReactNode>((part, i) => {
     const key = `${keyBase}-${i}`;
     if (/^\*\*[\s\S]+\*\*$/.test(part) || /^__[\s\S]+__$/.test(part)) {
       return [
@@ -94,7 +94,7 @@ function inline(text: string, keyBase: string): ReactNode[] {
         </code>,
       ];
     }
-    return [renderSuperSub(part, key)];
+    return renderSuperSub(part, key);
   });
 }
 

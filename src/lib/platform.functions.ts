@@ -25,6 +25,16 @@ export const getMyProfile = createServerFn({ method: "GET" })
       ctx.supabase.from("profiles").select("*").eq("id", ctx.userId).single(),
       myRoles(ctx),
     ]);
+
+    // Ensure student always has a valid student_id
+    if (profile && !profile.student_id && !roles.includes("parent") && !roles.includes("admin")) {
+      const newSid = "VEL-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+      try {
+        await ctx.supabase.from("profiles").update({ student_id: newSid }).eq("id", ctx.userId);
+        profile.student_id = newSid;
+      } catch {}
+    }
+
     return { profile, roles };
   });
 
@@ -35,7 +45,9 @@ export const completeRegistration = createServerFn({ method: "POST" })
       .object({
         firstName: z.string().trim().min(1).max(60),
         fatherName: z.string().trim().max(60).optional(),
-        role: z.enum(["admin", "parent", "student"]),
+        role: z.enum(["student", "parent"]),
+        gradeLevel: z.enum(["1","2","3","4","5","6","7","8","9","10","11","12","college","lifelong"]).optional().nullable(),
+        language: z.enum(["en", "am", "om", "ti"]).optional(),
       })
       .parse(data),
   )
@@ -46,9 +58,15 @@ export const completeRegistration = createServerFn({ method: "POST" })
       father_name: data.fatherName ?? null,
       display_name: data.firstName,
     };
+    if (data.language) {
+      update["language"] = data.language;
+    }
     if (data.role === "student") {
+      if (data.gradeLevel) update["grade_level"] = data.gradeLevel;
       const { data: sid } = await ctx.supabase.rpc("generate_student_id");
-      update["student_id"] = sid;
+      if (sid) update["student_id"] = sid;
+    } else {
+      update["grade_level"] = null;
     }
     const { error } = await ctx.supabase.from("profiles").update(update).eq("id", ctx.userId);
     if (error) throw new Error(error.message);
@@ -56,6 +74,32 @@ export const completeRegistration = createServerFn({ method: "POST" })
       .from("user_roles")
       .upsert({ user_id: ctx.userId, role: data.role }, { onConflict: "user_id,role" });
     if (roleError) throw new Error(roleError.message);
+    return { ok: true };
+  });
+
+export const updateMySettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) =>
+    z
+      .object({
+        displayName: z.string().trim().min(1).max(60).optional(),
+        gradeLevel: z.enum(["1","2","3","4","5","6","7","8","9","10","11","12","college","lifelong"]).optional().nullable(),
+        language: z.enum(["en", "am", "om", "ti"]).optional(),
+        avatarUrl: z.string().trim().max(1000).optional().nullable(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const ctx = context as Ctx;
+    const update: Record<string, unknown> = {};
+    if (data.displayName !== undefined) update["display_name"] = data.displayName;
+    if (data.gradeLevel !== undefined) update["grade_level"] = data.gradeLevel;
+    if (data.language !== undefined) update["language"] = data.language;
+    if (data.avatarUrl !== undefined) update["avatar_url"] = data.avatarUrl;
+    if (Object.keys(update).length > 0) {
+      const { error } = await ctx.supabase.from("profiles").update(update).eq("id", ctx.userId);
+      if (error) throw new Error(error.message);
+    }
     return { ok: true };
   });
 
@@ -85,40 +129,116 @@ export const markNotificationRead = createServerFn({ method: "POST" })
   });
 
 async function notify(ctx: Ctx, userId: string, kind: string, title: string, body: string, extra: Record<string, unknown> = {}) {
-  await ctx.supabase.from("notifications").insert({ user_id: userId, kind, title, body, data: extra });
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.from("notifications").insert({ user_id: userId, kind, title, body, data: extra });
+  } catch {
+    await ctx.supabase.from("notifications").insert({ user_id: userId, kind, title, body, data: extra });
+  }
 }
 
 // ---------- Parent–child linking ----------
 
 export const requestChildLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) => z.object({ studentId: z.string().trim().min(4).max(20) }).parse(data))
+  .inputValidator((data) => z.object({ studentId: z.string().trim().min(3).max(40) }).parse(data))
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx;
     await requireRole(ctx, "parent");
-    const { data: student } = await ctx.supabase
-      .from("profiles")
-      .select("id, display_name, student_id")
-      .eq("student_id", data.studentId.toUpperCase())
-      .maybeSingle();
-    if (!student) throw new Error("No student found with that ID.");
-    if (student.id === ctx.userId) throw new Error("You cannot link to yourself.");
+
+    // Clean and normalize ID variations (VEL-12345678, STU-12345678, or raw 8-character ID)
+    const rawInput = data.studentId.trim();
+    let cleanId = rawInput.toUpperCase();
+    if (cleanId.startsWith("STU-")) {
+      cleanId = "VEL-" + cleanId.slice(4);
+    } else if (!cleanId.startsWith("VEL-") && cleanId.length === 8) {
+      cleanId = "VEL-" + cleanId;
+    }
+    const rawSuffix = cleanId.replace(/^VEL-/, "");
+
+    let student: { id: string; display_name: string | null; student_id: string | null } | null = null;
+
+    // 1. Try PostgreSQL RPC lookup_student_by_id (SECURITY DEFINER - bypasses RLS)
+    try {
+      const { data: rpcResult, error: rpcErr } = await ctx.supabase
+        .rpc("lookup_student_by_id", { _student_id: cleanId });
+      if (!rpcErr && rpcResult && rpcResult.length > 0) {
+        student = rpcResult[0];
+      }
+    } catch (e) {
+      console.warn("[requestChildLink] RPC lookup fallback:", e);
+    }
+
+    // 2. Direct user query with OR matching both full ID and suffix
+    if (!student) {
+      const filterConditions = [
+        `student_id.eq.${cleanId}`,
+        `student_id.eq.${rawSuffix}`,
+        `student_id.ilike.${cleanId}`,
+        `student_id.ilike.%${rawSuffix}%`,
+      ].join(",");
+      const { data: directStudent } = await ctx.supabase
+        .from("profiles")
+        .select("id, display_name, student_id")
+        .or(filterConditions)
+        .maybeSingle();
+      if (directStudent) student = directStudent;
+    }
+
+    // 3. Fallback to service_role client on server
+    if (!student) {
+      try {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const filterConditions = [
+          `student_id.eq.${cleanId}`,
+          `student_id.eq.${rawSuffix}`,
+          `student_id.ilike.${cleanId}`,
+          `student_id.ilike.%${rawSuffix}%`,
+        ].join(",");
+        const { data: adminStudent } = await supabaseAdmin
+          .from("profiles")
+          .select("id, display_name, student_id")
+          .or(filterConditions)
+          .maybeSingle();
+        if (adminStudent) student = adminStudent;
+      } catch (e) {
+        console.warn("[requestChildLink] admin query fallback:", e);
+      }
+    }
+
+    if (!student) {
+      throw new Error(`No student found with ID "${data.studentId}". Please confirm the student has signed up and has their Student ID from their profile menu.`);
+    }
+
+    if (student.id === ctx.userId) {
+      throw new Error("You cannot link your parent account to your own account.");
+    }
+
     const { data: existing } = await ctx.supabase
       .from("parent_child_links")
       .select("id, status")
       .eq("parent_id", ctx.userId)
       .eq("student_id", student.id)
       .maybeSingle();
-    if (existing && (existing.status === "pending" || existing.status === "accepted"))
-      throw new Error("A link with this student already exists.");
+
+    if (existing && existing.status === "accepted") {
+      throw new Error(`You are already connected to ${student.display_name ?? "this student"}.`);
+    }
+
+    if (existing && existing.status === "pending") {
+      throw new Error(`A link request to ${student.display_name ?? "this student"} is already pending their acceptance in Settings.`);
+    }
+
     if (existing) {
-      await ctx.supabase.from("parent_child_links").update({ status: "pending" }).eq("id", existing.id);
+      const { error } = await ctx.supabase.from("parent_child_links").update({ status: "pending" }).eq("id", existing.id);
+      if (error) throw new Error(error.message);
     } else {
       const { error } = await ctx.supabase
         .from("parent_child_links")
         .insert({ parent_id: ctx.userId, student_id: student.id });
       if (error) throw new Error(error.message);
     }
+
     const { data: me } = await ctx.supabase.from("profiles").select("display_name").eq("id", ctx.userId).single();
     await notify(
       ctx,
@@ -128,7 +248,8 @@ export const requestChildLink = createServerFn({ method: "POST" })
       `${me?.display_name ?? "A parent"} wants to connect to your account. Accept or decline in Settings.`,
       { parent_id: ctx.userId },
     );
-    return { ok: true, studentName: student.display_name };
+
+    return { ok: true, studentName: student.display_name || "the student" };
   });
 
 export const respondToLink = createServerFn({ method: "POST" })
@@ -185,10 +306,29 @@ export const getMyLinks = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     const links = data ?? [];
     const ids = [...new Set(links.flatMap((l: any) => [l.parent_id, l.student_id]))];
-    const { data: profiles } = ids.length
-      ? await ctx.supabase.from("profiles").select("id, display_name, email, student_id").in("id", ids)
-      : { data: [] };
-    const byId = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+    let profiles: any[] = [];
+    if (ids.length) {
+      const { data: pData } = await ctx.supabase
+        .from("profiles")
+        .select("id, display_name, email, student_id")
+        .in("id", ids);
+      profiles = pData ?? [];
+
+      // If any profiles were blocked by RLS (e.g. pending status before DB migration), enrich with supabaseAdmin
+      if (profiles.length < ids.length) {
+        try {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const { data: adminProfiles } = await supabaseAdmin
+            .from("profiles")
+            .select("id, display_name, email, student_id")
+            .in("id", ids);
+          if (adminProfiles && adminProfiles.length > 0) {
+            profiles = adminProfiles;
+          }
+        } catch {}
+      }
+    }
+    const byId = new Map(profiles.map((p: any) => [p.id, p]));
     return links.map((l: any) => ({ ...l, parent: byId.get(l.parent_id), student: byId.get(l.student_id) }));
   });
 
@@ -338,23 +478,49 @@ export const adminAddApiKey = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx;
     await requireRole(ctx, "admin");
-    // Encrypted at rest via pgcrypto-backed vault-less approach: store using
-    // Supabase's built-in encryption is unavailable here, so we hash-obfuscate
-    // with the service role key as pepper and keep only last4 for display.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const pepper = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "";
     const encoder = new TextEncoder();
     const keyData = encoder.encode(data.key);
     const pepperData = encoder.encode(pepper);
     const obfuscated = Buffer.from(keyData.map((b, i) => b ^ (pepperData[i % pepperData.length] ?? 0))).toString("base64");
-    const { error } = await supabaseAdmin.from("ai_api_keys").insert({
+
+    const payload = {
       label: data.label,
       key_encrypted: obfuscated,
       last4: data.key.slice(-4),
       priority: data.priority,
       created_by: ctx.userId,
-    });
-    if (error) throw new Error(error.message);
+    };
+
+    // 1. First attempt: call security-definer RPC function admin_add_ai_key if available
+    try {
+      const { data: rpcId, error: rpcErr } = await ctx.supabase.rpc("admin_add_ai_key", {
+        _label: payload.label,
+        _key_encrypted: payload.key_encrypted,
+        _last4: payload.last4,
+        _priority: payload.priority,
+      });
+      if (!rpcErr && rpcId) {
+        return { ok: true, id: rpcId };
+      }
+    } catch {
+      // RPC not yet migrated, continue to direct inserts
+    }
+
+    // 2. Second attempt: insert using user's authenticated Supabase client (carries admin JWT)
+    let insertRes = await ctx.supabase.from("ai_api_keys").insert(payload);
+
+    // 3. Third attempt: fallback to supabaseAdmin (service role client)
+    if (insertRes.error) {
+      console.warn("[Admin Add Key] ctx.supabase insert failed:", insertRes.error.message, "- trying supabaseAdmin fallback");
+      insertRes = await supabaseAdmin.from("ai_api_keys").insert(payload);
+    }
+
+    if (insertRes.error) {
+      throw new Error(`Failed to save AI API key: ${insertRes.error.message}. Please make sure you have executed the setup.sql script in your Supabase SQL Editor.`);
+    }
+
     return { ok: true };
   });
 

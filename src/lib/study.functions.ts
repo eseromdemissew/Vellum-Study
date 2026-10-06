@@ -1,15 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
-import { streamText } from "ai";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
-  createLovableAiGatewayProvider,
-  describeAiError,
-  requireLovableApiKey,
-} from "./ai-gateway.server";
+  createGeminiClient,
+  describeGeminiError,
+  extractJsonFromText,
+  generateContentWithFallback,
+  KitSchema,
+  MoreCardsSchema,
+  MoreQuizSchema,
+} from "./gemini.server";
 
-const MODEL = "google/gemini-3.8-flash";
 const TEXT_LIMIT = 60000;
 
 type FilePart = {
@@ -21,35 +23,19 @@ type FilePart = {
 
 type TextPart = { type: "text"; text: string };
 
-function extractJson(raw: string): unknown {
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const body = (fenced?.[1] ?? raw).trim();
-  const start = body.indexOf("{");
-  const end = body.lastIndexOf("}");
-  if (start === -1 || end === -1) throw new Error("No JSON in model output");
-  return JSON.parse(body.slice(start, end + 1));
+function toGeminiContentParts(parts: (TextPart | FilePart)[]) {
+  return parts.map((p) => {
+    if (p.type === "file") {
+      return {
+        inlineData: {
+          data: p.data,
+          mimeType: p.mediaType,
+        },
+      };
+    }
+    return { text: p.text };
+  });
 }
-
-const KitSchema = z.object({
-  subject_code: z.string().default("STUDY"),
-  summary: z.string().default(""),
-  flashcards: z
-    .array(z.object({ question: z.string(), answer: z.string() }))
-    .default([]),
-  quiz: z
-    .array(
-      z.object({
-        question: z.string(),
-        options: z.array(z.string()),
-        correct_index: z.number(),
-        explanation: z.string().default(""),
-      }),
-    )
-    .default([]),
-  notes: z
-    .array(z.object({ heading: z.string(), body: z.string() }))
-    .default([]),
-});
 
 const TEXTUAL_MIME = /^(text\/|application\/(json|xml|csv|x-ndjson))/;
 
@@ -142,7 +128,7 @@ export const createNotebook = createServerFn({ method: "POST" })
     return { notebookId: notebook.id as string };
   });
 
-/** Read every source for a notebook and turn it into model message parts. */
+/** Read every source for a notebook and turn it into model message parts in parallel. */
 async function buildSourceParts(
   supabase: any,
   notebookId: string,
@@ -155,42 +141,60 @@ async function buildSourceParts(
   const parts: (TextPart | FilePart)[] = [];
   let hasFile = false;
 
-  for (const source of sources ?? []) {
+  // Process and download sources concurrently
+  const tasks = (sources ?? []).map(async (source: any) => {
     if (source.content) {
-      parts.push({
-        type: "text",
-        text: `--- Source: ${source.name} ---\n${String(source.content).slice(0, TEXT_LIMIT)}`,
-      });
-      continue;
+      return {
+        part: {
+          type: "text" as const,
+          text: `--- Source: ${source.name} ---\n${String(source.content).slice(0, TEXT_LIMIT)}`,
+        },
+        hasFile: false,
+      };
     }
-    if (!source.file_path) continue;
+    if (!source.file_path) return null;
 
-    const { data: blob, error } = await supabase.storage
-      .from("sources")
-      .download(source.file_path);
-    if (error || !blob) continue;
+    try {
+      const { data: blob, error } = await supabase.storage
+        .from("sources")
+        .download(source.file_path);
+      if (error || !blob) return null;
 
-    const mime = blob.type || "application/octet-stream";
-    const buffer = new Uint8Array(await blob.arrayBuffer());
+      const mime = blob.type || "application/octet-stream";
+      const buffer = new Uint8Array(await blob.arrayBuffer());
 
-    if (TEXTUAL_MIME.test(mime) || /\.(txt|md|csv|json)$/i.test(source.name)) {
-      const text = new TextDecoder().decode(buffer).slice(0, TEXT_LIMIT);
-      parts.push({ type: "text", text: `--- Source: ${source.name} ---\n${text}` });
-      hasFile = true;
-      continue;
+      if (TEXTUAL_MIME.test(mime) || /\.(txt|md|csv|json)$/i.test(source.name)) {
+        const text = new TextDecoder().decode(buffer).slice(0, TEXT_LIMIT);
+        return {
+          part: { type: "text" as const, text: `--- Source: ${source.name} ---\n${text}` },
+          hasFile: true,
+        };
+      }
+
+      let binary = "";
+      for (let i = 0; i < buffer.length; i += 0x8000) {
+        binary += String.fromCharCode(...buffer.subarray(i, i + 0x8000));
+      }
+      return {
+        part: {
+          type: "file" as const,
+          data: btoa(binary),
+          mediaType: mime,
+          filename: source.name,
+        },
+        hasFile: true,
+      };
+    } catch {
+      return null;
     }
+  });
 
-    let binary = "";
-    for (let i = 0; i < buffer.length; i += 0x8000) {
-      binary += String.fromCharCode(...buffer.subarray(i, i + 0x8000));
+  const downloaded = await Promise.all(tasks);
+  for (const item of downloaded) {
+    if (item?.part) {
+      parts.push(item.part);
+      if (item.hasFile) hasFile = true;
     }
-    parts.push({
-      type: "file",
-      data: btoa(binary),
-      mediaType: mime,
-      filename: source.name,
-    });
-    hasFile = true;
   }
 
   return { parts, hasFile };
@@ -206,11 +210,14 @@ export const generateStudyKit = createServerFn({ method: "POST" })
 
     const { data: notebook, error: notebookError } = await supabase
       .from("notebooks")
-      .select("id, title, description, status")
+      .select("id, user_id, title, description, status")
       .eq("id", data.notebookId)
       .single();
 
     if (notebookError || !notebook) throw new Error("Notebook not found.");
+    if (notebook.user_id && notebook.user_id !== userId) {
+      throw new Error("Only the creator of this notebook can regenerate the study kit.");
+    }
 
     await supabase
       .from("notebooks")
@@ -218,92 +225,115 @@ export const generateStudyKit = createServerFn({ method: "POST" })
       .eq("id", notebook.id);
 
     try {
-      const apiKey = requireLovableApiKey();
-      const gateway = createLovableAiGatewayProvider(apiKey);
+      const { genAI } = await createGeminiClient();
+
       const { parts } = await buildSourceParts(supabase, notebook.id);
 
-      const brief: TextPart = {
-        type: "text",
-        text: [
-          `Study notebook title: ${notebook.title}`,
-          notebook.description ? `Learner's description: ${notebook.description}` : "",
-          parts.length === 0
-            ? "There is no uploaded material. Build the study kit from your own knowledge of this topic."
-            : "Use the attached source material below as the single source of truth.",
-        ]
-          .filter(Boolean)
-          .join("\n"),
-      };
+      const briefText = [
+        `Study notebook title: ${notebook.title}`,
+        notebook.description ? `Learner's description: ${notebook.description}` : "",
+        parts.length === 0
+          ? "There is no uploaded material. Build the study kit from your own knowledge of this topic."
+          : "Use the attached source material below as the single source of truth.",
+      ]
+        .filter(Boolean)
+        .join("\n");
 
-      const instruction: TextPart = {
-        type: "text",
-        text: `Produce a complete study kit and reply with ONLY a JSON object, no prose, no markdown fences.
+      const instructionText = `Generate an elite, high-yield study kit. Reply strictly with ONLY a JSON object.
 
-Shape:
+Format:
 {
-  "subject_code": short uppercase tag, max 10 characters, e.g. "BIO-204" or "HISTORY",
-  "summary": one paragraph overview, max 400 characters,
-  "flashcards": array of 14 to 20 objects { "question", "answer" },
-  "quiz": array of 8 to 12 objects { "question", "options" (exactly 4 strings), "correct_index" (0-3), "explanation" },
-  "notes": array of 5 to 8 objects { "heading", "body" } where body is 2-4 sentences of crisp revision notes
+  "subject_code": "e.g. BIO-101 or HISTORY (uppercase tag, max 10 chars)",
+  "summary": "1 crisp, high-impact paragraph summary of the core concepts (max 400 chars)",
+  "flashcards": [{"question": "focused question", "answer": "precise, self-contained answer"}],
+  "quiz": [{"question": "conceptual question", "options": ["Option A", "Option B", "Option C", "Option D"], "correct_index": 0, "explanation": "concise 1-sentence reasoning"}],
+  "notes": [{"heading": "key concept heading", "body": "2-3 crisp revision bullet sentences"}]
 }
 
-Rules: cover the whole material evenly, no duplicate questions, answers must be self-contained, keep language clear and exam-focused.`,
-      };
+Kit Requirements:
+- flashcards: exactly 10 high-yield, exam-targeted question & answer cards
+- quiz: exactly 6 conceptual multiple-choice questions with 4 distinct options and concise explanations
+- notes: exactly 5 structured revision note blocks with clear headings and essential takeaways
+- Be concise, direct, accurate, and fast. Avoid unnecessary fluff or repetition.`;
 
-      const result = streamText({
-        model: gateway(MODEL),
-        system:
-          "You are Vellum, an expert study-kit generator. You always reply with strict, valid JSON only.",
-        messages: [{ role: "user", content: [brief, ...parts, instruction] as any }],
-        onError: ({ error }) => console.error("[generateStudyKit stream]", error),
-      });
+      const promptParts = [
+        { text: briefText },
+        ...toGeminiContentParts(parts),
+        { text: instructionText },
+      ];
 
-      const raw = await result.text;
-      const kit = KitSchema.parse(extractJson(raw));
+      const { text: rawText } = await generateContentWithFallback(
+        genAI,
+        {
+          generationConfig: {
+            temperature: 0.2,
+            responseMimeType: "application/json",
+          },
+          systemInstruction:
+            "You are Vellum, an elite academic AI tutor. Generate clean, highly accurate, exam-focused study kits in valid JSON format. Be concise, rigorous, and fast.",
+        },
+        promptParts
+      );
+      const kit = KitSchema.parse(extractJsonFromText(rawText));
 
-      await supabase.from("flashcards").delete().eq("notebook_id", notebook.id);
-      await supabase.from("quiz_questions").delete().eq("notebook_id", notebook.id);
-      await supabase.from("notes").delete().eq("notebook_id", notebook.id);
+      // Clear existing in parallel
+      await Promise.all([
+        supabase.from("flashcards").delete().eq("notebook_id", notebook.id),
+        supabase.from("quiz_questions").delete().eq("notebook_id", notebook.id),
+        supabase.from("notes").delete().eq("notebook_id", notebook.id),
+      ]);
+
+      // Insert all kit components in parallel
+      const insertPromises: Promise<any>[] = [];
 
       if (kit.flashcards.length) {
-        await supabase.from("flashcards").insert(
-          kit.flashcards.map((card, index) => ({
-            notebook_id: notebook.id,
-            user_id: userId,
-            question: card.question,
-            answer: card.answer,
-            position: index,
-          })),
+        insertPromises.push(
+          supabase.from("flashcards").insert(
+            kit.flashcards.map((card, index) => ({
+              notebook_id: notebook.id,
+              user_id: userId,
+              question: card.question,
+              answer: card.answer,
+              position: index,
+            }))
+          )
         );
       }
+
       if (kit.quiz.length) {
-        await supabase.from("quiz_questions").insert(
-          kit.quiz.map((item, index) => ({
-            notebook_id: notebook.id,
-            user_id: userId,
-            question: item.question,
-            options: item.options,
-            correct_index: Math.min(
-              Math.max(item.correct_index, 0),
-              Math.max(item.options.length - 1, 0),
-            ),
-            explanation: item.explanation,
-            position: index,
-          })),
+        insertPromises.push(
+          supabase.from("quiz_questions").insert(
+            kit.quiz.map((item, index) => ({
+              notebook_id: notebook.id,
+              user_id: userId,
+              question: item.question,
+              options: item.options,
+              correct_index: Math.min(
+                Math.max(item.correct_index, 0),
+                Math.max(item.options.length - 1, 0),
+              ),
+              explanation: item.explanation,
+              position: index,
+            }))
+          )
         );
       }
+
       if (kit.notes.length) {
-        await supabase.from("notes").insert(
-          kit.notes.map((note, index) => ({
-            notebook_id: notebook.id,
-            user_id: userId,
-            heading: note.heading,
-            body: note.body,
-            position: index,
-          })),
+        insertPromises.push(
+          supabase.from("notes").insert(
+            kit.notes.map((note, index) => ({
+              notebook_id: notebook.id,
+              user_id: userId,
+              heading: note.heading,
+              body: note.body,
+              position: index,
+            }))
+          )
         );
       }
+
+      await Promise.all(insertPromises);
 
       await supabase
         .from("notebooks")
@@ -317,7 +347,7 @@ Rules: cover the whole material evenly, no duplicate questions, answers must be 
 
       return { ok: true as const };
     } catch (error) {
-      const message = describeAiError(error);
+      const message = describeGeminiError(error);
       console.error("[generateStudyKit]", error);
       await supabase
         .from("notebooks")
@@ -342,10 +372,13 @@ export const askSources = createServerFn({ method: "POST" })
 
     const { data: notebook, error } = await supabase
       .from("notebooks")
-      .select("id, title, description")
+      .select("id, user_id, title, description, is_shared")
       .eq("id", data.notebookId)
       .single();
     if (error || !notebook) throw new Error("Notebook not found.");
+    if (notebook.user_id !== userId && !notebook.is_shared) {
+      throw new Error("This notebook is private and can only be accessed by the creator.");
+    }
 
     await supabase.from("chat_messages").insert({
       notebook_id: notebook.id,
@@ -355,8 +388,8 @@ export const askSources = createServerFn({ method: "POST" })
     });
 
     try {
-      const apiKey = requireLovableApiKey();
-      const gateway = createLovableAiGatewayProvider(apiKey);
+      const { genAI } = await createGeminiClient();
+
       const { parts } = await buildSourceParts(supabase, notebook.id);
 
       const { data: history } = await supabase
@@ -376,33 +409,27 @@ export const askSources = createServerFn({ method: "POST" })
         .map((n: { heading: string; body: string }) => `${n.heading}: ${n.body}`)
         .join("\n");
 
-      const result = streamText({
-        model: gateway(MODEL),
-        system: `You are Vellum, a study assistant answering strictly from the learner's own material for the notebook "${notebook.title}". Cite the source name in parentheses when you use it. If the material does not answer the question, say so plainly, then give a short general answer clearly marked as outside the sources. Keep answers under 140 words. Formatting: write plainly — no markdown headings or bullet symbols, and NEVER any LaTeX or dollar signs. Write formulas and chemistry plainly like CO2, H2O, NADP+; use **bold** only for one or two key terms per answer.`,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `Reference material for this notebook:\n${context_text}`,
-              },
-              ...parts,
-              {
-                type: "text",
-                text: "Acknowledge the material silently and answer the questions that follow.",
-              },
-            ] as any,
-          },
-          { role: "assistant", content: "Understood. Ask away." },
-          ...(history ?? []).map((m: { role: string; content: string }) => ({
-            role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
-            content: m.content,
-          })),
-        ],
-      });
+      const historyFormatted = (history ?? [])
+        .map((m: { role: string; content: string }) => `${m.role === "assistant" ? "Assistant" : "Student"}: ${m.content}`)
+        .join("\n");
 
-      const answer = (await result.text).trim() || "I could not find an answer in your material.";
+      const promptParts = [
+        { text: `Reference notes for this notebook:\n${context_text}` },
+        ...toGeminiContentParts(parts),
+        { text: `Conversation history so far:\n${historyFormatted}\n\nStudent asks: ${data.question}\nProvide a concise, direct answer based strictly on the material above.` },
+      ];
+
+      const { text: answerText } = await generateContentWithFallback(
+        genAI,
+        {
+          generationConfig: {
+            temperature: 0.4,
+          },
+          systemInstruction: `You are Vellum, a study assistant answering strictly from the learner's own material for the notebook "${notebook.title}". Cite the source name in parentheses when you use it. If the material does not answer the question, say so plainly, then give a short general answer clearly marked as outside the sources. Keep answers under 140 words. Formatting: write plainly — no markdown headings or bullet symbols, and NEVER any LaTeX or dollar signs. Write formulas and chemistry plainly like CO2, H2O, NADP+; use **bold** only for one or two key terms per answer.`,
+        },
+        promptParts
+      );
+      const answer = answerText.trim() || "I could not find an answer in your material.";
 
       await supabase.from("chat_messages").insert({
         notebook_id: notebook.id,
@@ -413,7 +440,7 @@ export const askSources = createServerFn({ method: "POST" })
 
       return { answer };
     } catch (error) {
-      const message = describeAiError(error);
+      const message = describeGeminiError(error);
       console.error("[askSources]", error);
       throw new Error(message);
     }
@@ -424,32 +451,16 @@ export const askSources = createServerFn({ method: "POST" })
  * or flashcards on demand, never repeating what is already stored.
  * ------------------------------------------------------------- */
 
-const MoreQuizSchema = z.object({
-  quiz: z
-    .array(
-      z.object({
-        question: z.string(),
-        options: z.array(z.string()),
-        correct_index: z.number(),
-        explanation: z.string().default(""),
-      }),
-    )
-    .default([]),
-});
-
-const MoreCardsSchema = z.object({
-  flashcards: z
-    .array(z.object({ question: z.string(), answer: z.string() }))
-    .default([]),
-});
-
-async function notebookContext(supabase: any, notebookId: string) {
+async function notebookContext(supabase: any, notebookId: string, userId: string) {
   const { data: notebook, error } = await supabase
     .from("notebooks")
-    .select("id, title, description")
+    .select("id, user_id, title, description, is_shared")
     .eq("id", notebookId)
     .single();
   if (error || !notebook) throw new Error("Notebook not found.");
+  if (notebook.user_id !== userId && !notebook.is_shared) {
+    throw new Error("This notebook is private and can only be accessed by the creator.");
+  }
 
   const { parts } = await buildSourceParts(supabase, notebook.id);
   const { data: notes } = await supabase
@@ -479,11 +490,12 @@ export const generateMoreQuestions = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     try {
-      const apiKey = requireLovableApiKey();
-      const gateway = createLovableAiGatewayProvider(apiKey);
+      const { genAI } = await createGeminiClient();
+
       const { notebook, parts, notesText } = await notebookContext(
         supabase,
         data.notebookId,
+        userId,
       );
 
       const { data: existing } = await supabase
@@ -497,37 +509,37 @@ export const generateMoreQuestions = createServerFn({ method: "POST" })
       const nextPosition =
         ((existing ?? [])[0]?.position ?? -1) + 1;
 
-      const result = streamText({
-        model: gateway(MODEL),
-        system:
-          "You are Vellum, an expert exam-question writer. You always reply with strict, valid JSON only, no markdown fences.",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `Notebook: ${notebook.title}\n${notebook.description ?? ""}\n\nKey notes:\n${notesText}`,
-              },
-              ...parts,
-              {
-                type: "text",
-                text: `Write ${data.count} BRAND NEW multiple-choice questions at ${data.difficulty} difficulty.
+      const promptParts = [
+        {
+          text: `Notebook: ${notebook.title}\n${notebook.description ?? ""}\n\nKey notes:\n${notesText}`,
+        },
+        ...toGeminiContentParts(parts),
+        {
+          text: `Write ${data.count} BRAND NEW multiple-choice questions at ${data.difficulty} difficulty.
 
 Already asked (never repeat these or paraphrase them):
 ${asked.map((q: string) => `- ${q}`).join("\n") || "- (nothing yet)"}
 
 Reply with ONLY this JSON:
-{"quiz":[{"question":"...","options":["a","b","c","d"],"correct_index":0,"explanation":"why the answer is right and the others are wrong, 1-3 sentences"}]}
+{"quiz":[{"question":"...","options":["optA","optB","optC","optD"],"correct_index":0,"explanation":"why the answer is right and the others are wrong, 1-3 sentences"}]}
 
 Rules: exactly 4 options each, plausible distractors, explore angles not yet covered, stay faithful to the material. Plain text only — no LaTeX or dollar signs; write formulas plainly like CO2, NADP+.`,
-              },
-            ] as any,
-          },
-        ],
-      });
+        },
+      ];
 
-      const parsed = MoreQuizSchema.parse(extractJson(await result.text));
+      const { text: rawText } = await generateContentWithFallback(
+        genAI,
+        {
+          generationConfig: {
+            temperature: 0.5,
+            responseMimeType: "application/json",
+          },
+          systemInstruction:
+            "You are Vellum, an expert exam-question writer. You always reply with strict, valid JSON only, no markdown fences.",
+        },
+        promptParts
+      );
+      const parsed = MoreQuizSchema.parse(extractJsonFromText(rawText));
       const rows = parsed.quiz
         .filter((q) => q.options.length >= 2)
         .map((q, index) => ({
@@ -550,7 +562,7 @@ Rules: exactly 4 options each, plausible distractors, explore angles not yet cov
       return { added: rows.length };
     } catch (error) {
       console.error("[generateMoreQuestions]", error);
-      throw new Error(describeAiError(error));
+      throw new Error(describeGeminiError(error));
     }
   });
 
@@ -567,11 +579,12 @@ export const generateMoreFlashcards = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     try {
-      const apiKey = requireLovableApiKey();
-      const gateway = createLovableAiGatewayProvider(apiKey);
+      const { genAI } = await createGeminiClient();
+
       const { notebook, parts, notesText } = await notebookContext(
         supabase,
         data.notebookId,
+        userId,
       );
 
       const { data: existing } = await supabase
@@ -584,35 +597,35 @@ export const generateMoreFlashcards = createServerFn({ method: "POST" })
       const asked = (existing ?? []).map((c: { question: string }) => c.question);
       const nextPosition = ((existing ?? [])[0]?.position ?? -1) + 1;
 
-      const result = streamText({
-        model: gateway(MODEL),
-        system:
-          "You are Vellum, an expert flashcard writer. You always reply with strict, valid JSON only, no markdown fences.",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `Notebook: ${notebook.title}\n${notebook.description ?? ""}\n\nKey notes:\n${notesText}`,
-              },
-              ...parts,
-              {
-                type: "text",
-                text: `Write ${data.count} BRAND NEW flashcards.
+      const promptParts = [
+        {
+          text: `Notebook: ${notebook.title}\n${notebook.description ?? ""}\n\nKey notes:\n${notesText}`,
+        },
+        ...toGeminiContentParts(parts),
+        {
+          text: `Write ${data.count} BRAND NEW flashcards.
 
 Already covered (never repeat or paraphrase):
 ${asked.map((q: string) => `- ${q}`).join("\n") || "- (nothing yet)"}
 
 Reply with ONLY this JSON: {"flashcards":[{"question":"...","answer":"..."}]}
 Answers must be self-contained and exam-focused. Plain text only — no LaTeX or dollar signs; write formulas plainly like CO2, NADP+.`,
-              },
-            ] as any,
-          },
-        ],
-      });
+        },
+      ];
 
-      const parsed = MoreCardsSchema.parse(extractJson(await result.text));
+      const { text: rawText } = await generateContentWithFallback(
+        genAI,
+        {
+          generationConfig: {
+            temperature: 0.5,
+            responseMimeType: "application/json",
+          },
+          systemInstruction:
+            "You are Vellum, an expert flashcard writer. You always reply with strict, valid JSON only, no markdown fences.",
+        },
+        promptParts
+      );
+      const parsed = MoreCardsSchema.parse(extractJsonFromText(rawText));
       const rows = parsed.flashcards.map((c, index) => ({
         notebook_id: notebook.id,
         user_id: userId,
@@ -628,6 +641,44 @@ Answers must be self-contained and exam-focused. Plain text only — no LaTeX or
       return { added: rows.length };
     } catch (error) {
       console.error("[generateMoreFlashcards]", error);
-      throw new Error(describeAiError(error));
+      throw new Error(describeGeminiError(error));
     }
+  });
+
+export const toggleNotebookShare = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        notebookId: z.string().uuid(),
+        isShared: z.boolean(),
+      })
+      .parse(input)
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+
+    // Verify ownership
+    const { data: nb, error } = await supabase
+      .from("notebooks")
+      .select("id, user_id, title")
+      .eq("id", data.notebookId)
+      .single();
+
+    if (error || !nb) throw new Error("Notebook not found.");
+    if (nb.user_id !== userId) throw new Error("Only the creator of this notebook can change sharing permissions.");
+
+    const { error: updateError } = await supabase
+      .from("notebooks")
+      .update({ is_shared: data.isShared })
+      .eq("id", data.notebookId);
+
+    if (updateError) {
+      if (updateError.message.includes("is_shared") || updateError.message.includes("column")) {
+        throw new Error("Sharing requires the 'is_shared' column in your Supabase database. Please run: ALTER TABLE public.notebooks ADD COLUMN IF NOT EXISTS is_shared BOOLEAN NOT NULL DEFAULT false; in Supabase SQL editor.");
+      }
+      throw new Error(updateError.message);
+    }
+
+    return { ok: true, isShared: data.isShared };
   });

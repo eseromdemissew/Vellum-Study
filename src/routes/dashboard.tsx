@@ -7,10 +7,14 @@ import {
   CheckCircle2,
   FileUp,
   Loader2,
+  Lock,
   Plus,
+  Share2,
   Sparkles,
   Trash2,
+  Video,
   X,
+  Youtube,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -48,6 +52,7 @@ type Notebook = {
   status: string;
   error_message: string | null;
   updated_at: string;
+  is_shared?: boolean;
 };
 
 const statusStyles: Record<string, string> = {
@@ -77,11 +82,26 @@ function Dashboard() {
         ? 4000
         : false,
     queryFn: async () => {
-      const { data, error } = await supabase
+      if (!user) return [];
+      let data: any[] | null = null;
+      const resWithShared = await supabase
         .from("notebooks")
-        .select("id, title, description, subject_code, status, error_message, updated_at")
+        .select("id, user_id, title, description, subject_code, status, error_message, updated_at, is_shared")
+        .eq("user_id", user.id)
         .order("updated_at", { ascending: false });
-      if (error) throw new Error(error.message);
+
+      if (!resWithShared.error && resWithShared.data) {
+        data = resWithShared.data;
+      } else {
+        const fallbackRes = await supabase
+          .from("notebooks")
+          .select("id, user_id, title, description, subject_code, status, error_message, updated_at")
+          .eq("user_id", user.id)
+          .order("updated_at", { ascending: false });
+
+        if (fallbackRes.error) throw new Error(fallbackRes.error.message);
+        data = (fallbackRes.data ?? []).map((n) => ({ ...n, is_shared: false }));
+      }
       return (data ?? []) as Notebook[];
     },
   });
@@ -151,9 +171,20 @@ function Dashboard() {
                   className="block"
                 >
                   <div className="flex items-center justify-between font-mono text-[10px] tracking-wide">
-                    <span className="glass-fill rounded-md px-2 py-1 text-muted-foreground">
-                      {notebook.subject_code || "STUDY"}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="glass-fill rounded-md px-2 py-1 text-muted-foreground">
+                        {notebook.subject_code || "STUDY"}
+                      </span>
+                      {notebook.is_shared ? (
+                        <span className="rounded-md bg-blue-500/15 border border-blue-500/30 px-1.5 py-0.5 text-blue-500 font-semibold inline-flex items-center gap-1">
+                          <Share2 className="size-2.5" /> SHARED
+                        </span>
+                      ) : (
+                        <span className="rounded-md bg-muted/60 border border-border/40 px-1.5 py-0.5 text-muted-foreground font-semibold inline-flex items-center gap-1">
+                          <Lock className="size-2.5" /> PRIVATE
+                        </span>
+                      )}
+                    </div>
                     <span
                       className={`flex items-center gap-1.5 ${statusStyles[notebook.status] ?? ""}`}
                     >
@@ -205,6 +236,7 @@ function Composer({ onCreated }: { onCreated: () => void }) {
   const [pastedText, setPastedText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [stage, setStage] = useState<"idle" | "uploading" | "creating" | "generating">("idle");
+  const [suggestVideos, setSuggestVideos] = useState(true);
 
   const busy = stage !== "idle";
 
@@ -251,6 +283,10 @@ function Composer({ onCreated }: { onCreated: () => void }) {
         .then(() => toast.success("Your study kit is ready"))
         .catch((error: Error) => toast.error(error.message));
 
+      if (suggestVideos) {
+        localStorage.setItem(`vellum-yt-${notebookId}`, "1");
+      }
+
       navigate({ to: "/notebook/$notebookId", params: { notebookId } });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not create the notebook.");
@@ -287,6 +323,29 @@ function Composer({ onCreated }: { onCreated: () => void }) {
             placeholder="Optional: paste notes, a transcript or an article here."
             className="glass-fill w-full resize-none rounded-xl px-4 py-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/60"
           />
+          {/* YouTube Video Suggestions Toggle */}
+          <div className="flex items-center justify-between rounded-xl bg-primary/5 border border-primary/15 px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-red-500/15">
+                <Youtube className="size-4 text-red-500" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-foreground">Suggest YouTube Videos</p>
+                <p className="text-[10px] text-muted-foreground">Find related video lessons for this topic</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSuggestVideos(!suggestVideos)}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 cursor-pointer ${
+                suggestVideos ? "bg-primary" : "bg-muted"
+              }`}
+            >
+              <span className={`inline-block size-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                suggestVideos ? "translate-x-6" : "translate-x-1"
+              }`} />
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-col gap-3">

@@ -1,0 +1,30 @@
+# Vellum — AI Study Notebooks
+
+> Vellum is an AI-powered educational study companion and learning platform. It transforms any document, textbook, or learning topic into interactive flashcards, unlimited self-testing quizzes, revision notes, and grounded question answering.
+
+## Core Capabilities
+- **Document to Study Kit**: Ingests PDFs, lecture slides, text, and course materials to automatically generate structured study kits.
+- **Active Recall Flashcards**: Interactive digital flip cards with confidence ratings and mastery tracking.
+- **Dynamic Quiz Engine**: Unlimited multiple-choice and conceptual practice questions with instant explanatory feedback.
+- **Grounded AI Tutor**: Answers student questions strictly based on the provided material with citations.
+- **National Curriculum Library**: Complete digital library of Ethiopian textbooks (Grades 7 to 12 across Natural and Social sciences) in English, Amharic, Afaan Oromoo, and Tigrinya.
+- **Study Breaks & Educational Games**: Curated brain break games with daily playtime limits to balance studying and wellness.
+
+## Main Public Routes
+- **[Home / Landing Page](https://vellumstudy.vercel.app/)**: Overview of Vellum, features, and instant onboarding.
+- **[Curriculum Library](https://vellumstudy.vercel.app/library)**: Browse textbooks, supplementary books, open-access curriculum materials by grade and subject.
+- **[Educational Games](https://vellumstudy.vercel.app/games)**: Brain break games zone.
+- **[Sign In](https://vellumstudy.vercel.app/login)**: Student and educator authentication.
+- **[Sign Up](https://vellumstudy.vercel.app/signup)**: Free student account creation.
+- **[Privacy Policy](https://vellumstudy.vercel.app/privacy)**: Data privacy and student protection policy.
+- **[Terms of Service](https://vellumstudy.vercel.app/terms)**: Platform terms of use.
+
+## Developer & Attribution
+- **Creator / Developer**: Eserom Demissew
+- **Developer Website & Portfolio**: https://eserom.vercel.app
+
+## Technical Details
+- **Production URL**: https://vellumstudy.vercel.app
+- **Sitemap**: https://vellumstudy.vercel.app/sitemap.xml
+- **Robots Policy**: https://vellumstudy.vercel.app/robots.txt
+- **Target Audience**: Students (Middle school, High school, University), Educators, and Lifelong Learners.

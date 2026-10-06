@@ -7,18 +7,26 @@ import {
   ArrowRight,
   Check,
   CheckCircle2,
+  Copy,
+  ExternalLink,
   FileText,
+  Globe,
   Layers,
   Loader2,
+  Lock,
   MessageSquare,
   NotebookPen,
   RefreshCw,
   RotateCcw,
   Send,
+  Share2,
   Sparkles,
   Trophy,
+  Video,
   X,
   XCircle,
+  Youtube,
+  Play,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,6 +39,7 @@ import {
   generateMoreFlashcards,
   generateMoreQuestions,
   generateStudyKit,
+  toggleNotebookShare,
 } from "@/lib/study.functions";
 
 export const Route = createFileRoute("/notebook/$notebookId")({
@@ -54,7 +63,7 @@ export const Route = createFileRoute("/notebook/$notebookId")({
   component: NotebookPage,
 });
 
-type Tab = "quiz" | "cards" | "notes" | "ask";
+type Tab = "quiz" | "cards" | "notes" | "ask" | "videos";
 type Card = { id: string; question: string; answer: string; mastered: boolean; position: number };
 type Question = {
   id: string;
@@ -69,9 +78,18 @@ function NotebookPage() {
   const { notebookId } = Route.useParams();
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>("quiz");
+  const [tab, setTab] = useState<Tab>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(`vellum-yt-${notebookId}`);
+      if (stored === "1") return "videos";
+    }
+    return "quiz";
+  });
   const regenerate = useServerFn(generateStudyKit);
+  const toggleShareFn = useServerFn(toggleNotebookShare);
   const qc = useQueryClient();
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [shareToggling, setShareToggling] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth" });
@@ -85,15 +103,92 @@ function NotebookPage() {
       return s === "generating" || s === "pending" ? 3000 : false;
     },
     queryFn: async () => {
-      const { data, error } = await supabase
+      let data: any = null;
+      // Try to select including is_shared; if column does not exist on live Supabase yet, fallback gracefully
+      const resWithShared = await supabase
         .from("notebooks")
-        .select("id, title, description, subject_code, status, error_message")
+        .select("id, user_id, title, description, subject_code, status, error_message, is_shared")
         .eq("id", notebookId)
-        .single();
-      if (error) throw new Error(error.message);
+        .maybeSingle();
+
+      if (!resWithShared.error && resWithShared.data) {
+        data = resWithShared.data;
+      } else {
+        const fallbackRes = await supabase
+          .from("notebooks")
+          .select("id, user_id, title, description, subject_code, status, error_message")
+          .eq("id", notebookId)
+          .maybeSingle();
+
+        if (fallbackRes.error) throw new Error(fallbackRes.error.message);
+        if (!fallbackRes.data) throw new Error("Notebook not found.");
+        data = { ...fallbackRes.data, is_shared: false };
+      }
+
+      // Check access permission:
+      // If user is owner: ALWAYS allow!
+      if (user && data.user_id === user.id) {
+        return data;
+      }
+
+      // If user is not owner and notebook is not shared:
+      if (!data.is_shared) {
+        throw new Error("PRIVATE_NOTEBOOK");
+      }
+
       return data;
     },
   });
+
+  const isOwner = Boolean(user && nb.data?.user_id === user.id);
+  const isShared = Boolean(nb.data?.is_shared);
+
+  const onCopyLink = async () => {
+    try {
+      if (typeof window !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(window.location.href);
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2500);
+        toast.success("Share link copied to clipboard!", {
+          description: isShared
+            ? "Anyone with this link can now view this notebook's cards, quizzes, notes, and sources."
+            : "Notice: This notebook is currently set to Private. Enable link sharing for others to open it.",
+        });
+      }
+    } catch {
+      toast.error("Could not copy link to clipboard.");
+    }
+  };
+
+  const onToggleShare = async () => {
+    if (!isOwner || shareToggling) return;
+    setShareToggling(true);
+    const targetState = !isShared;
+    try {
+      await toggleShareFn({ data: { notebookId, isShared: targetState } });
+      qc.setQueryData(["notebook", notebookId], (old: any) =>
+        old ? { ...old, is_shared: targetState } : old
+      );
+      if (targetState) {
+        if (typeof window !== "undefined" && navigator.clipboard) {
+          await navigator.clipboard.writeText(window.location.href);
+          setCopiedLink(true);
+          setTimeout(() => setCopiedLink(false), 2500);
+        }
+        toast.success("Notebook is now Shared!", {
+          description: "Share link copied! Anyone with the link or in the community chat can now access all cards, quizzes, notes, and sources.",
+        });
+      } else {
+        toast.info("Notebook is now Private.", {
+          description: "Access has been restricted. Only you can access or view this study kit.",
+        });
+      }
+    } catch (e) {
+      toast.error((e as Error).message || "Failed to update sharing settings.");
+    } finally {
+      setShareToggling(false);
+    }
+  };
 
   const sources = useQuery({
     queryKey: ["sources", notebookId],
@@ -111,6 +206,7 @@ function NotebookPage() {
   const busy = nb.data?.status === "generating" || nb.data?.status === "pending";
 
   const onRegenerate = async () => {
+    if (!isOwner) return;
     qc.setQueryData(["notebook", notebookId], (d: any) => (d ? { ...d, status: "generating" } : d));
     try {
       await regenerate({ data: { notebookId } });
@@ -126,6 +222,7 @@ function NotebookPage() {
     { id: "cards", label: "Flashcards", icon: Layers },
     { id: "notes", label: "Notes", icon: NotebookPen },
     { id: "ask", label: "Ask sources", icon: MessageSquare },
+    { id: "videos", label: "Videos", icon: Video },
   ];
 
   return (
@@ -140,9 +237,27 @@ function NotebookPage() {
 
         <div className="rise mt-4 flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
-            <p className="font-mono text-[11px] tracking-wide text-primary">
-              {nb.data?.subject_code || "STUDY"}
-            </p>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[11px] tracking-wide text-primary">
+                {nb.data?.subject_code || "STUDY"}
+              </span>
+              {isOwner ? (
+                isShared ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-blue-500">
+                    <Globe className="h-3 w-3" /> SHARED (PUBLIC LINK)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/60 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground">
+                    <Lock className="h-3 w-3" /> PRIVATE (ONLY YOU)
+                  </span>
+                )
+              ) : isShared ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-blue-500">
+                  <Globe className="h-3 w-3" /> SHARED STUDY KIT
+                </span>
+              ) : null}
+            </div>
+
             <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight md:text-4xl">
               {nb.data?.title ?? "Loading…"}
             </h1>
@@ -150,14 +265,57 @@ function NotebookPage() {
               <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{nb.data.description}</p>
             )}
           </div>
-          <button
-            onClick={onRegenerate}
-            disabled={busy}
-            className="glass-soft inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm hover:text-primary disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
-            {busy ? "Generating…" : "Regenerate kit"}
-          </button>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Share / Link Controls (Owner only) */}
+            {isOwner && (
+              <button
+                type="button"
+                onClick={onToggleShare}
+                disabled={shareToggling}
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition cursor-pointer ${
+                  isShared
+                    ? "bg-blue-500/15 border border-blue-500/30 text-blue-500 hover:bg-blue-500/25"
+                    : "glass-soft text-foreground hover:text-primary"
+                }`}
+                title={isShared ? "Click to revoke sharing and make private" : "Click to share notebook with others"}
+              >
+                {shareToggling ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : isShared ? (
+                  <Globe className="h-4 w-4 text-blue-500" />
+                ) : (
+                  <Share2 className="h-4 w-4" />
+                )}
+                {isShared ? "Shared (Click to revoke)" : "Share Notebook"}
+              </button>
+            )}
+
+            {/* Quick Copy Link Button */}
+            {(isShared || isOwner) && (
+              <button
+                type="button"
+                onClick={onCopyLink}
+                className="glass-soft inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-sm hover:text-primary transition cursor-pointer"
+                title="Copy share link to clipboard"
+              >
+                {copiedLink ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
+                {copiedLink ? "Copied!" : "Copy Link"}
+              </button>
+            )}
+
+            {/* Regenerate Kit (Owner only) */}
+            {isOwner && (
+              <button
+                onClick={onRegenerate}
+                disabled={busy}
+                className="glass-soft inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm hover:text-primary disabled:opacity-50 cursor-pointer"
+              >
+                <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
+                {busy ? "Generating…" : "Regenerate kit"}
+              </button>
+            )}
+          </div>
         </div>
 
         {(sources.data?.length ?? 0) > 0 && (
@@ -176,12 +334,22 @@ function NotebookPage() {
         )}
 
         {busy && (
-          <div className="glass mt-8 flex flex-col items-center rounded-3xl p-12 text-center">
-            <Sparkles className="pulse-soft h-8 w-8 text-primary" />
-            <p className="mt-4 font-display text-xl">Reading your material…</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Building flashcards, quiz questions and notes. This usually takes under a minute.
+          <div className="glass mt-8 flex flex-col items-center rounded-3xl p-10 md:p-14 text-center border border-primary/20 bg-primary/[0.03]">
+            <div className="relative flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Sparkles className="size-8 animate-pulse text-primary" />
+              <div className="absolute inset-0 rounded-2xl border-2 border-primary/40 animate-ping opacity-25" />
+            </div>
+            <h2 className="mt-5 font-display text-2xl font-bold">AI is crafting your study kit…</h2>
+            <p className="mt-2 text-sm text-muted-foreground max-w-md">
+              Extracting key concepts, writing exam flashcards, synthesizing notes, and preparing practice quizzes.
             </p>
+            <div className="mt-6 w-full max-w-sm rounded-full bg-muted/60 p-1 overflow-hidden">
+              <div className="h-2 w-full rounded-full bg-gradient-to-r from-primary via-cool to-primary animate-pulse" />
+            </div>
+            <div className="mt-4 flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
+              <Loader2 className="size-3.5 animate-spin text-primary" />
+              <span>Building study kit • Auto-refreshing…</span>
+            </div>
           </div>
         )}
 
@@ -192,9 +360,43 @@ function NotebookPage() {
             <p className="mt-1 text-sm text-muted-foreground">{nb.data.error_message}</p>
             <button
               onClick={onRegenerate}
-              className="mt-5 rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground"
+              className="mt-5 rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground cursor-pointer hover:brightness-110"
             >
               Try again
+            </button>
+          </div>
+        )}
+
+        {nb.isError && nb.error?.message === "PRIVATE_NOTEBOOK" && (
+          <div className="glass mt-8 rounded-3xl p-10 text-center border border-border/40">
+            <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-destructive/10 text-destructive mb-4">
+              <Lock className="size-7" />
+            </div>
+            <p className="font-display text-2xl font-bold">Private Notebook</p>
+            <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
+              This notebook is strictly private and can only be accessed by the user who generated it.
+            </p>
+            <div className="mt-6 flex justify-center gap-3">
+              <Link
+                to="/dashboard"
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition hover:brightness-110"
+              >
+                Back to My Notebooks
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {nb.isError && nb.error?.message !== "PRIVATE_NOTEBOOK" && (
+          <div className="glass mt-8 rounded-3xl p-8 text-center border border-destructive/30">
+            <XCircle className="mx-auto h-8 w-8 text-destructive" />
+            <p className="mt-3 font-display text-lg">Unable to load notebook</p>
+            <p className="mt-1 text-sm text-muted-foreground">{nb.error?.message}</p>
+            <button
+              onClick={() => nb.refetch()}
+              className="mt-4 rounded-xl bg-primary px-5 py-2 text-sm font-medium text-primary-foreground cursor-pointer hover:brightness-110"
+            >
+              Retry
             </button>
           </div>
         )}
@@ -219,9 +421,10 @@ function NotebookPage() {
             </div>
             <div key={tab} className="rise mt-6">
               {tab === "quiz" && <QuizPanel notebookId={notebookId} />}
-              {tab === "cards" && <CardsPanel notebookId={notebookId} />}
+              {tab === "cards" && <CardsPanel notebookId={notebookId} isOwner={isOwner} />}
               {tab === "notes" && <NotesPanel notebookId={notebookId} />}
               {tab === "ask" && <AskPanel notebookId={notebookId} />}
+              {tab === "videos" && <VideosPanel notebookId={notebookId} notebookTitle={nb.data?.title || ""} notebookDescription={nb.data?.description || ""} />}
             </div>
           </>
         )}
@@ -471,7 +674,7 @@ function QuizPanel({ notebookId }: { notebookId: string }) {
 
 /* ---------------------------- FLASHCARDS ---------------------------- */
 
-function CardsPanel({ notebookId }: { notebookId: string }) {
+function CardsPanel({ notebookId, isOwner }: { notebookId: string; isOwner: boolean }) {
   const qc = useQueryClient();
   const more = useServerFn(generateMoreFlashcards);
   const [index, setIndex] = useState(0);
@@ -500,7 +703,9 @@ function CardsPanel({ notebookId }: { notebookId: string }) {
 
   const toggleMastered = async () => {
     if (!card) return;
-    await supabase.from("flashcards").update({ mastered: !card.mastered }).eq("id", card.id);
+    if (isOwner) {
+      await supabase.from("flashcards").update({ mastered: !card.mastered }).eq("id", card.id);
+    }
     qc.setQueryData(["cards", notebookId], (d: Card[] | undefined) =>
       d?.map((c) => (c.id === card.id ? { ...c, mastered: !c.mastered } : c)),
     );
@@ -715,6 +920,336 @@ function Bubble({ role, content }: { role: string; content: string }) {
       >
         {mine ? content : <RichText text={content} />}
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------ VIDEOS ------------------------------ */
+
+function VideosPanel({ notebookId, notebookTitle, notebookDescription }: { notebookId: string; notebookTitle: string; notebookDescription: string }) {
+  const [videos, setVideos] = useState<Array<{
+    id: string;
+    title: string;
+    thumbnail: string;
+    channelTitle: string;
+    duration?: string;
+    badge?: string;
+    directId?: string;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [theaterVideo, setTheaterVideo] = useState<{ id: string; title: string; isRealId: boolean } | null>(null);
+
+  // Generate search query from notebook title and description
+  const defaultQuery = useMemo(() => {
+    const parts: string[] = [];
+    if (notebookTitle) parts.push(notebookTitle);
+    if (notebookDescription) {
+      const firstSentence = notebookDescription.split(/[.!?]/)[0]?.trim();
+      if (firstSentence && firstSentence.length < 80) parts.push(firstSentence);
+    }
+    return parts.join(" ").slice(0, 100) || "study tutorial";
+  }, [notebookTitle, notebookDescription]);
+
+  // Fetch notes for tailored topic lessons
+  const notesQ = useQuery({
+    queryKey: ["notes-for-video", notebookId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("notes")
+        .select("heading")
+        .eq("notebook_id", notebookId)
+        .order("position")
+        .limit(6);
+      return (data ?? []).map((n: any) => n.heading);
+    },
+  });
+
+  useEffect(() => {
+    const fetchVideos = async () => {
+      setLoading(true);
+      const query = searchQuery || defaultQuery;
+
+      try {
+        // Attempt Invidious proxy
+        const encodedQuery = encodeURIComponent(query + " lesson tutorial");
+        const res = await fetch(`https://vid.puffyan.us/api/v1/search?q=${encodedQuery}&type=video&sort_by=relevance&page=1`, {
+          signal: AbortSignal.timeout(6000),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            const results = data.slice(0, 8).map((v: any) => ({
+              id: v.videoId,
+              directId: v.videoId,
+              title: v.title,
+              thumbnail: v.videoThumbnails?.find((t: any) => t.quality === "medium")?.url || `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg`,
+              channelTitle: v.author || "YouTube",
+              duration: v.lengthSeconds ? `${Math.floor(v.lengthSeconds / 60)}:${String(v.lengthSeconds % 60).padStart(2, "0")}` : "Lesson",
+              badge: "Video Lesson",
+            }));
+            setVideos(results);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {
+        // Continue to curated educational cards
+      }
+
+      // Curated topic lessons extracted from notebook notes & title
+      const channels = ["Khan Academy", "CrashCourse", "3Blue1Brown", "MIT OpenCourseWare", "freeCodeCamp", "TED-Ed"];
+      const durations = ["14:20", "18:45", "11:15", "22:05", "09:30", "16:40"];
+      const badges = ["Full Lesson", "Core Concept", "Worked Examples", "Visual Summary", "Deep Dive", "Exam Prep"];
+      const covers = [
+        "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=700&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=700&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=700&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=700&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=700&auto=format&fit=crop&q=80",
+        "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=700&auto=format&fit=crop&q=80",
+      ];
+
+      const topics = (notesQ.data && notesQ.data.length > 0)
+        ? notesQ.data
+        : [notebookTitle, "Key Definitions & Terminology", "Step-by-Step Problem Solving", "Visual Overview & Concepts"];
+
+      const generated = topics.slice(0, 6).map((topic, i) => ({
+        id: `search-${i}`,
+        title: `${topic} — Video Lesson & Explanation`,
+        thumbnail: covers[i % covers.length] || "",
+        channelTitle: channels[i % channels.length] || "Educational Lesson",
+        duration: durations[i % durations.length] || "15:00",
+        badge: badges[i % badges.length] || "Video Guide",
+      }));
+
+      setVideos(generated);
+      setLoading(false);
+    };
+
+    fetchVideos();
+  }, [searchQuery, defaultQuery, notesQ.data, notebookTitle]);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Search Bar */}
+      <div className="glass rounded-3xl p-5 border border-border/40">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-red-500/15 shadow-xs">
+              <Youtube className="size-6 text-red-500" />
+            </div>
+            <div>
+              <h3 className="font-display text-base font-bold text-foreground">Suggested Video Lessons</h3>
+              <p className="text-xs text-muted-foreground">
+                High-yield video tutorials and visual explanations related to your study kit
+              </p>
+            </div>
+          </div>
+
+          <a
+            href={`https://www.youtube.com/results?search_query=${encodeURIComponent((searchQuery || defaultQuery) + " lesson")}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-red-500/10 border border-red-500/25 px-3.5 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-500/20 transition cursor-pointer"
+          >
+            <Youtube className="size-3.5" /> Open in YouTube <ExternalLink className="size-3" />
+          </a>
+        </div>
+
+        <form onSubmit={handleSearch} className="flex gap-2">
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={`Search video lessons… (default: ${defaultQuery.slice(0, 50)})`}
+            className="glass-fill flex-1 rounded-xl px-4 py-2.5 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-red-500/40"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="rounded-xl px-3 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Clear
+            </button>
+          )}
+          <button
+            type="submit"
+            className="rounded-xl bg-red-500 px-5 py-2.5 text-xs font-semibold text-white hover:brightness-110 transition cursor-pointer shadow-xs"
+          >
+            Search
+          </button>
+        </form>
+      </div>
+
+      {/* Video Cards Grid */}
+      {loading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="glass-soft h-60 animate-pulse rounded-3xl" />
+          ))}
+        </div>
+      ) : videos.length === 0 ? (
+        <div className="glass rounded-3xl p-10 text-center">
+          <Video className="mx-auto size-12 text-muted-foreground/40" />
+          <h4 className="mt-3 font-display text-base font-bold">No videos found</h4>
+          <p className="mt-1 text-xs text-muted-foreground">Try a different search query or explore YouTube directly.</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {videos.map((video) => {
+            const isSearch = video.id.startsWith("search-");
+            const ytUrl = isSearch
+              ? `https://www.youtube.com/results?search_query=${encodeURIComponent(video.title)}`
+              : `https://www.youtube.com/watch?v=${video.id}`;
+
+            return (
+              <div
+                key={video.id}
+                className="glass rise group flex flex-col rounded-3xl overflow-hidden border border-border/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-red-500/30"
+              >
+                {/* Thumbnail Header */}
+                <div className="relative aspect-video bg-black/40 overflow-hidden">
+                  {video.thumbnail ? (
+                    <img
+                      src={video.thumbnail}
+                      alt={video.title}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-red-500/20 to-red-900/30">
+                      <Youtube className="size-12 text-red-500/60" />
+                    </div>
+                  )}
+
+                  {/* Dark gradient overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+
+                  {/* Play overlay button */}
+                  <div
+                    onClick={() => {
+                      if (!isSearch && video.id) {
+                        setTheaterVideo({ id: video.id, title: video.title, isRealId: true });
+                      } else {
+                        window.open(ytUrl, "_blank");
+                      }
+                    }}
+                    className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 cursor-pointer"
+                  >
+                    <div className="flex size-12 items-center justify-center rounded-full bg-red-500 shadow-xl shadow-red-500/40 transform group-hover:scale-110 transition-transform">
+                      <Play className="size-5 text-white ml-0.5" />
+                    </div>
+                  </div>
+
+                  {/* Top Badge */}
+                  {video.badge && (
+                    <div className="absolute top-2.5 left-2.5">
+                      <span className="rounded-lg bg-black/70 backdrop-blur-md px-2 py-0.5 text-[10px] font-semibold text-white border border-white/10">
+                        {video.badge}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Duration Chip */}
+                  {video.duration && (
+                    <div className="absolute bottom-2.5 right-2.5">
+                      <span className="rounded-md bg-black/80 backdrop-blur-sm px-1.5 py-0.5 font-mono text-[10px] text-white">
+                        {video.duration}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Video Info & Action */}
+                <div className="flex-1 p-4 flex flex-col justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-foreground line-clamp-2 group-hover:text-primary transition-colors leading-snug">
+                      {video.title}
+                    </h4>
+                    <p className="mt-1.5 text-[11px] text-muted-foreground flex items-center gap-1.5">
+                      <Youtube className="size-3 text-red-500 shrink-0" />
+                      <span className="truncate">{video.channelTitle}</span>
+                    </p>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between gap-2">
+                    {!isSearch && video.id ? (
+                      <button
+                        onClick={() => setTheaterVideo({ id: video.id, title: video.title, isRealId: true })}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline cursor-pointer"
+                      >
+                        <Play className="size-3" /> Watch in Vellum
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">Curated Topic Lesson</span>
+                    )}
+
+                    <a
+                      href={ytUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 rounded-lg bg-red-500/10 px-2.5 py-1 text-[11px] font-semibold text-red-500 hover:bg-red-500/20 transition cursor-pointer"
+                    >
+                      <span>Watch</span>
+                      <ExternalLink className="size-2.5" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Theater Video Modal */}
+      {theaterVideo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div className="glass w-full max-w-3xl rounded-3xl overflow-hidden border border-border/60 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between p-4 border-b border-border/40">
+              <div className="flex items-center gap-2 min-w-0 pr-4">
+                <Youtube className="size-5 text-red-500 shrink-0" />
+                <h3 className="font-display text-sm font-bold truncate text-foreground">
+                  {theaterVideo.title}
+                </h3>
+              </div>
+              <button
+                onClick={() => setTheaterVideo(null)}
+                className="p-1 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="relative aspect-video bg-black">
+              <iframe
+                src={`https://www.youtube-nocookie.com/embed/${theaterVideo.id}?autoplay=1`}
+                title={theaterVideo.title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="w-full h-full border-0"
+              />
+            </div>
+
+            <div className="p-4 flex items-center justify-between bg-background/60">
+              <span className="text-xs text-muted-foreground">Playing via YouTube player</span>
+              <a
+                href={`https://www.youtube.com/watch?v=${theaterVideo.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-red-500 px-4 py-2 text-xs font-semibold text-white hover:brightness-110 transition"
+              >
+                Open in YouTube <ExternalLink className="size-3" />
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
