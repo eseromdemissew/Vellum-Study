@@ -437,10 +437,12 @@ samp {
 }
 
 /* Suppress 3rd party translate banners & keep fixed viewport layout */
+#google_translate_element,
 .goog-te-banner-frame,
 .skiptranslate > iframe,
 #goog-gt-tt,
-.goog-te-balloon-frame {
+.goog-te-balloon-frame,
+.goog-te-spinner-pos {
   display: none !important;
   visibility: hidden !important;
 }
@@ -448,5 +450,15 @@ samp {
 body {
   top: 0 !important;
   position: static !important;
+}
+
+.goog-text-highlight {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+font {
+  background-color: transparent !important;
+  box-shadow: none !important;
 }
 

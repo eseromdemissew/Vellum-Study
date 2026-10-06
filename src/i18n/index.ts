@@ -6,7 +6,7 @@ import type { LanguageCode } from "@/lib/i18n";
 
 export { en, am, om, ti };
 
-export const dictionaries: Record<LanguageCode, Record<string, string>> = {
+export const dictionaries: Record<string, Record<string, string>> = {
   en,
   am,
   om,

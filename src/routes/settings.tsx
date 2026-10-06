@@ -393,7 +393,7 @@ function SettingsPage() {
               >
                 {SUPPORTED_LANGUAGES.map((l) => (
                   <option key={l.code} value={l.code} className="bg-background text-foreground">
-                    {l.nativeLabel} ({l.code.toUpperCase()})
+                    {l.flag} {l.nativeLabel} ({l.code.toUpperCase()}) — {l.label}
                   </option>
                 ))}
               </select>

@@ -347,14 +347,14 @@ function RootShell({ children }: { children: ReactNode }) {
           />
         )}
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
-        {/* Dynamic drop-in translation & browser language detection */}
+        {/* Dynamic language detection & Google Translate Init */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 try {
                   var detected = (navigator.language || navigator.userLanguage || 'en').toLowerCase().split('-')[0];
-                  var valid = ['en', 'am', 'om', 'ti'];
+                  var valid = ['en', 'am', 'om', 'ti', 'ar', 'fr', 'es', 'de', 'sw', 'zh-CN'];
                   if (!localStorage.getItem('vellum_lang')) {
                     var chosen = valid.indexOf(detected) !== -1 ? detected : 'en';
                     localStorage.setItem('vellum_lang', chosen);
@@ -364,18 +364,26 @@ function RootShell({ children }: { children: ReactNode }) {
                   }
                 } catch(e) {}
               })();
-              window.gtranslateSettings = {
-                default_language: "en",
-                languages: ["en", "am", "om", "ti", "ar", "fr", "es"],
-                wrapper_selector: ".gtranslate_wrapper",
-                native_language_names: 1,
-                detect_browser_language: 1
+              window.googleTranslateElementInit = function() {
+                try {
+                  if (window.google && window.google.translate) {
+                    new window.google.translate.TranslateElement({
+                      pageLanguage: 'en',
+                      includedLanguages: 'en,am,om,ti,ar,fr,es,de,sw,zh-CN',
+                      autoDisplay: false,
+                      layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE
+                    }, 'google_translate_element');
+                  }
+                } catch(e) {}
               };
             `,
           }}
         />
+        <script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" async defer />
       </head>
       <body>
+        {/* Google Translate Hidden Target */}
+        <div id="google_translate_element" style={{ display: "none" }} />
         {/* Google Tag Manager (noscript fallback) */}
         {GTM_ID && (
           <noscript>
